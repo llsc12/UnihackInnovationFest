@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+<<<<<<< HEAD:app/(app)/login/login-form.tsx
 import { useSearchParams } from "next/navigation";
+=======
+>>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,10 +14,14 @@ import { createBrowserClient } from "@/lib/supabase";
 type Mode = "login" | "register";
 
 export function LoginForm() {
+<<<<<<< HEAD:app/(app)/login/login-form.tsx
   const searchParams = useSearchParams();
   const initialMode: Mode = searchParams.get("mode") === "signup" ? "register" : "login";
 
   const [mode, setMode] = useState<Mode>(initialMode);
+=======
+  const [mode, setMode] = useState<Mode>("login");
+>>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,7 +45,11 @@ export function LoginForm() {
       return;
     }
 
+<<<<<<< HEAD:app/(app)/login/login-form.tsx
     window.location.assign("/");
+=======
+    window.location.href = "/";
+>>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
   }
 
   return (

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }
 
-    const result = checkCompatibility(listing, vehicle);
+    const result = await checkCompatibility(listing, vehicle);
     return NextResponse.json(result);
   } catch (err) {
     console.error("compatibility check failed:", err);

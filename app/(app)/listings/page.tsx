@@ -2,8 +2,8 @@
 // AutoReviver-branded grid (see app/autoreviver.css `.browse-*` rules).
 export const dynamic = "force-dynamic";
 
-import { ListingCard } from "@/components/listing-card";
 import { search } from "@/lib/search";
+import { SearchBar } from "./search-bar";
 
 interface PageProps {
   searchParams: Promise<{ q?: string; make?: string; model?: string; year?: string; partType?: string }>;

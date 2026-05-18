@@ -5,15 +5,24 @@
 //   - Validation (zod?) before submit.
 //   - Image upload (or a URL list for now).
 //   - Persist the generated listing somewhere (Stream 5 to provide data layer).
-//   - Streaming response while Claude writes the listing.
 
 import { useState } from "react";
+import { FileText, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import type { GeneratedListing, ListingInput } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import type { ListingInput } from "@/lib/types";
+import {
+  finalizeListing,
+  parseListingSections,
+  type PartialListing,
+} from "@/lib/listing-format";
+import { cn } from "@/lib/utils";
+
+type Mode = "template" | "ai";
 
 const EMPTY: ListingInput = {
   partType: "",
@@ -29,12 +38,14 @@ const EMPTY: ListingInput = {
 
 export function SellForm() {
   const [input, setInput] = useState<ListingInput>(EMPTY);
-  const [loading, setLoading] = useState(false);
-  const [generated, setGenerated] = useState<GeneratedListing | null>(null);
-  const [streamingText, setStreamingText] = useState("");
+  const [activeMode, setActiveMode] = useState<Mode | null>(null);
+  const [partial, setPartial] = useState<PartialListing | null>(null);
+  const [generatedBy, setGeneratedBy] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
+
+  const loading = activeMode !== null;
 
   function set<K extends keyof ListingInput>(key: K, value: ListingInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }));
@@ -97,14 +108,17 @@ export function SellForm() {
     }
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  async function onGenerate(mode: Mode) {
+    if (!input.partType || !input.make || !input.model) {
+      setError("Part type, make, and model are required.");
+      return;
+    }
+    setActiveMode(mode);
     setError(null);
-    setGenerated(null);
-    setStreamingText("");
+    setPartial(null);
+    setGeneratedBy(null);
     try {
-      const res = await fetch("/api/generate-listing", {
+      const res = await fetch(`/api/generate-listing?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -118,18 +132,19 @@ export function SellForm() {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        setStreamingText(buffer);
+        setPartial(parseListingSections(buffer));
       }
       buffer += decoder.decode();
-
-      setGenerated(JSON.parse(buffer) as GeneratedListing);
-      setStreamingText("");
+      setPartial(parseListingSections(buffer));
+      setGeneratedBy(mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      setActiveMode(null);
     }
   }
+
+  const final = !loading && partial ? finalizeListing(partial) : null;
 
   return (
     <div className="space-y-6">
@@ -138,7 +153,13 @@ export function SellForm() {
           <CardTitle>Part details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              onGenerate("ai");
+            }}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          >
             <Field label="Part type" required>
               <Input value={input.partType} onChange={(e) => set("partType", e.target.value)} placeholder="Headlight" required />
             </Field>
@@ -239,9 +260,19 @@ export function SellForm() {
               )}
             </div>
 
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onGenerate("template")}
+                disabled={loading}
+              >
+                <FileText className="h-4 w-4" />
+                {activeMode === "template" ? "Generating…" : "Use template"}
+              </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Generating…" : "Generate listing"}
+                <Sparkles className="h-4 w-4" />
+                {activeMode === "ai" ? "Generating…" : "Generate with Claude"}
               </Button>
             </div>
           </form>
@@ -250,36 +281,84 @@ export function SellForm() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {streamingText && !generated && (
+      {(loading || partial) && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              Generating…
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              {loading && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+              )}
+              <span>{loading ? "Generating listing…" : "Generated listing"}</span>
+              {generatedBy && (
+                <Badge variant={generatedBy === "ai" ? "default" : "secondary"} className="ml-auto">
+                  {generatedBy === "ai" ? (
+                    <><Sparkles className="mr-1 h-3 w-3" /> Claude</>
+                  ) : (
+                    <><FileText className="mr-1 h-3 w-3" /> Template</>
+                  )}
+                </Badge>
+              )}
+              {activeMode && (
+                <Badge variant="outline" className="ml-auto">
+                  {activeMode === "ai" ? (
+                    <><Sparkles className="mr-1 h-3 w-3" /> Claude</>
+                  ) : (
+                    <><FileText className="mr-1 h-3 w-3" /> Template</>
+                  )}
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-              {streamingText}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-
-      {generated && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Generated listing</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <h2 className="text-lg font-semibold">{generated.title}</h2>
-            <p>{generated.description}</p>
-            <p className="text-muted-foreground"><b>Condition:</b> {generated.conditionNotes}</p>
-            <p className="text-muted-foreground"><b>Fits:</b> {generated.compatibilitySummary}</p>
-            <p className="text-muted-foreground"><b>Keywords:</b> {generated.keywords.join(", ")}</p>
+          <CardContent className="space-y-4">
+            <StreamLine
+              value={partial?.title}
+              isActive={loading && partial?.activeField === "title"}
+              placeholder="Title…"
+              className="text-xl font-semibold leading-tight"
+            />
+            <StreamLine
+              value={partial?.description}
+              isActive={loading && partial?.activeField === "description"}
+              placeholder="Description…"
+              className="text-sm leading-relaxed"
+            />
+            <div className="grid gap-3 sm:grid-cols-2 pt-2">
+              <LabelledRow label="Condition">
+                <StreamLine
+                  value={partial?.conditionNotes}
+                  isActive={loading && partial?.activeField === "conditionNotes"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              </LabelledRow>
+              <LabelledRow label="Fits">
+                <StreamLine
+                  value={partial?.compatibilitySummary}
+                  isActive={loading && partial?.activeField === "compatibilitySummary"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              </LabelledRow>
+            </div>
+            <LabelledRow label="Keywords">
+              {final ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {final.keywords.map((k) => (
+                    <Badge key={k} variant="secondary">{k}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <StreamLine
+                  value={partial?.keywordsRaw}
+                  isActive={loading && partial?.activeField === "keywordsRaw"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              )}
+            </LabelledRow>
           </CardContent>
         </Card>
       )}
@@ -296,5 +375,40 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </Label>
       {children}
     </div>
+  );
+}
+
+function LabelledRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Renders a streamed line. Shows a faint placeholder until any text arrives,
+// and a blinking caret on the field currently being written.
+function StreamLine({
+  value,
+  isActive,
+  placeholder,
+  className,
+}: {
+  value: string | undefined;
+  isActive: boolean;
+  placeholder: string;
+  className?: string;
+}) {
+  const hasValue = !!value;
+  return (
+    <p className={cn(className, !hasValue && !isActive && "italic text-muted-foreground/50")}>
+      {hasValue ? value : isActive ? "" : placeholder}
+      {isActive && (
+        <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-0.5 animate-pulse bg-foreground/70 align-middle" />
+      )}
+    </p>
   );
 }

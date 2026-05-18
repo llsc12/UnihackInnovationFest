@@ -4,7 +4,7 @@
 // The client should accumulate chunks and JSON.parse the final buffer.
 
 import { NextResponse } from "next/server";
-import { generateListingStream } from "@/lib/listing-generator";
+import { generateListingStream, type GenerationMode } from "@/lib/listing-generator";
 import type { ListingInput } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -22,11 +22,15 @@ export async function POST(req: Request) {
     );
   }
 
+  const modeParam = new URL(req.url).searchParams.get("mode");
+  const mode: GenerationMode =
+    modeParam === "template" || modeParam === "ai" ? modeParam : "auto";
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of generateListingStream(input)) {
+        for await (const chunk of generateListingStream(input, { mode })) {
           controller.enqueue(encoder.encode(chunk));
         }
         controller.close();

@@ -47,6 +47,14 @@ export async function POST(req: Request) {
   }
 
   const supabase = createServerClient();
+
+  // Ensure the bucket exists (storage-api creates the schema on first boot,
+  // so the bucket row may not have been inserted by the DB init script yet)
+  const { data: buckets } = await supabase.storage.listBuckets();
+  if (!buckets?.find((b) => b.name === "listing-images")) {
+    await supabase.storage.createBucket("listing-images", { public: true });
+  }
+
   const urls: string[] = [];
 
   for (const file of files) {

@@ -1,4 +1,5 @@
 // STREAM 3 — listing detail page. Shows trust score + compatibility checker (Stream 2's UI).
+export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { getListingById } from "@/lib/data";

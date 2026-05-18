@@ -232,6 +232,18 @@ export function SellForm() {
                 />
               </Field>
             </div>
+            <div className="sm:col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="returnPolicy"
+                checked={input.hasReturnPolicy ?? false}
+                onChange={(e) => set("hasReturnPolicy", e.target.checked)}
+                className="h-4 w-4 rounded border accent-primary"
+              />
+              <label htmlFor="returnPolicy" className="text-sm">
+                I offer a return policy on this part
+              </label>
+            </div>
             <div className="sm:col-span-2 space-y-3">
               <Label>Photos (up to 4)</Label>
               <div className="flex flex-wrap gap-3">

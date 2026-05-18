@@ -1,10 +1,15 @@
 // STREAM 3 — listing detail page. Shows trust score + compatibility checker (Stream 2's UI).
+export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { getListingById } from "@/lib/data";
+import { createSessionServerClient } from "@/lib/supabase";
 import { computeTrustScore } from "@/lib/trust-score";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TrustScoreBadge } from "@/components/trust-score-badge";
 import { CompatibilityChecker } from "./compatibility-checker";
 import { formatPrice, formatYearRange } from "@/lib/utils";
@@ -16,16 +21,28 @@ interface PageProps {
 
 export default async function ListingDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const listing = getListingById(id);
+  const listing = await getListingById(id);
   if (!listing) notFound();
 
   const trust = computeTrustScore(listing);
+
+  const cookieStore = await cookies();
+  const supabase = createSessionServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  const isOwner = user != null && listing.userId === user.id;
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-6">
         <header className="space-y-3">
-          <h1 className="text-3xl font-bold">{listing.generated.title}</h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-3xl font-bold">{listing.generated.title}</h1>
+            {isOwner && (
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link href={`/listings/${listing.id}/edit`}>Edit listing</Link>
+              </Button>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{listing.input.partType}</Badge>
             <Badge variant="secondary">

@@ -1,8 +1,16 @@
 // STREAM 1 — Seller listing creation flow.
+export const dynamic = "force-dynamic";
 
+import Link from "next/link";
+import { cookies } from "next/headers";
+import { createSessionServerClient } from "@/lib/supabase";
 import { SellForm } from "./sell-form";
 
-export default function SellPage() {
+export default async function SellPage() {
+  const cookieStore = await cookies();
+  const supabase = createSessionServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-2">
@@ -11,7 +19,15 @@ export default function SellPage() {
           Fill in the basics. AutoReviver will turn it into a clean, structured listing.
         </p>
       </header>
-      <SellForm />
+      {user ? (
+        <SellForm />
+      ) : (
+        <p className="text-muted-foreground">
+          You need to{" "}
+          <Link href="/login" className="underline text-foreground">sign in</Link>
+          {" "}before you can post a listing.
+        </p>
+      )}
     </div>
   );
 }

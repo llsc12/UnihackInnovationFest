@@ -52,6 +52,7 @@ export interface GeneratedListing {
 // A full listing as stored in data/listings.json and returned by the API.
 export interface Listing {
   id: string;
+  userId?: string;
   input: ListingInput;
   generated: GeneratedListing;
   seller: Seller;

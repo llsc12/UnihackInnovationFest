@@ -44,6 +44,8 @@ export function SellForm() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postedId, setPostedId] = useState<string | null>(null);
 
   const loading = activeMode !== null;
 
@@ -117,6 +119,7 @@ export function SellForm() {
     setError(null);
     setPartial(null);
     setGeneratedBy(null);
+    setPostedId(null);
     try {
       const res = await fetch(`/api/generate-listing?mode=${mode}`, {
         method: "POST",
@@ -145,6 +148,26 @@ export function SellForm() {
   }
 
   const final = !loading && partial ? finalizeListing(partial) : null;
+
+  async function onPost() {
+    if (!final) return;
+    setPosting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input, generated: final }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const listing = await res.json();
+      setPostedId(listing.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPosting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -359,6 +382,20 @@ export function SellForm() {
                 />
               )}
             </LabelledRow>
+            {final && (
+              <div className="pt-2">
+                {postedId ? (
+                  <p className="text-sm text-green-600">
+                    Listing posted!{" "}
+                    <a href={`/listings/${postedId}`} className="underline">View listing</a>
+                  </p>
+                ) : (
+                  <Button onClick={onPost} disabled={posting}>
+                    {posting ? "Posting…" : "Post listing"}
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

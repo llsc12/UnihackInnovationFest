@@ -1,4 +1,5 @@
 // STREAM 4 — search results / browse page.
+export const dynamic = "force-dynamic";
 // TODO(stream-4): wire up the filters in the URL (?q=&make=&model=&year=&partType=).
 
 import { ListingCard } from "@/components/listing-card";
@@ -10,7 +11,7 @@ interface PageProps {
 
 export default async function ListingsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const results = search({
+  const results = await search({
     q: params.q,
     make: params.make,
     model: params.model,

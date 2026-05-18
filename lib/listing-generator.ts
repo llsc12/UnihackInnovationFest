@@ -20,12 +20,35 @@ export async function generateListing(input: ListingInput): Promise<GeneratedLis
   return finalizeListing(parseListingSections(buffer));
 }
 
+export type GenerationMode = "auto" | "template" | "ai";
+
 // Streams the listing as section-delimited text chunks (see lib/listing-format.ts).
-// Falls back to a fake typewriter over the template if no API key OR if Claude fails
-// before yielding any output. (If Claude fails mid-stream we propagate the error —
-// can't cleanly switch to a template after partial output has already gone to the client.)
-export async function* generateListingStream(input: ListingInput): AsyncIterable<string> {
-  if (process.env.ANTHROPIC_API_KEY) {
+//
+// Modes:
+//   auto     - Use Claude if ANTHROPIC_API_KEY is set, else template. Falls back to
+//              template if Claude fails before yielding any output.
+//   template - Force the deterministic template path. Never calls Claude.
+//   ai       - Force the Claude path. Throws if ANTHROPIC_API_KEY is missing or
+//              if Claude fails (no silent fallback — demo wants the failure to show).
+//
+// If Claude fails mid-stream we always propagate, since partial output has already
+// reached the client.
+export async function* generateListingStream(
+  input: ListingInput,
+  options: { mode?: GenerationMode } = {}
+): AsyncIterable<string> {
+  const mode = options.mode ?? "auto";
+
+  if (mode === "template") {
+    yield* generateWithTemplateStream(input);
+    return;
+  }
+
+  if (mode === "ai" && !process.env.ANTHROPIC_API_KEY) {
+    throw new Error("AI mode requested but ANTHROPIC_API_KEY is not set");
+  }
+
+  if (mode === "ai" || (mode === "auto" && process.env.ANTHROPIC_API_KEY)) {
     let yieldedAny = false;
     try {
       for await (const chunk of generateWithClaudeStream(input)) {
@@ -35,9 +58,11 @@ export async function* generateListingStream(input: ListingInput): AsyncIterable
       return;
     } catch (err) {
       console.error("Claude streaming failed:", err);
+      if (mode === "ai") throw err;
       if (yieldedAny) throw err;
     }
   }
+
   yield* generateWithTemplateStream(input);
 }
 

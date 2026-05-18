@@ -7,6 +7,7 @@
 //   - Persist the generated listing somewhere (Stream 5 to provide data layer).
 
 import { useState } from "react";
+import { FileText, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,8 @@ import {
   type PartialListing,
 } from "@/lib/listing-format";
 import { cn } from "@/lib/utils";
+
+type Mode = "template" | "ai";
 
 const EMPTY: ListingInput = {
   partType: "",
@@ -35,21 +38,28 @@ const EMPTY: ListingInput = {
 
 export function SellForm() {
   const [input, setInput] = useState<ListingInput>(EMPTY);
-  const [loading, setLoading] = useState(false);
+  const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [partial, setPartial] = useState<PartialListing | null>(null);
+  const [generatedBy, setGeneratedBy] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const loading = activeMode !== null;
 
   function set<K extends keyof ListingInput>(key: K, value: ListingInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  async function onGenerate(mode: Mode) {
+    if (!input.partType || !input.make || !input.model) {
+      setError("Part type, make, and model are required.");
+      return;
+    }
+    setActiveMode(mode);
     setError(null);
     setPartial(null);
+    setGeneratedBy(null);
     try {
-      const res = await fetch("/api/generate-listing", {
+      const res = await fetch(`/api/generate-listing?mode=${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -67,10 +77,11 @@ export function SellForm() {
       }
       buffer += decoder.decode();
       setPartial(parseListingSections(buffer));
+      setGeneratedBy(mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      setActiveMode(null);
     }
   }
 
@@ -83,7 +94,13 @@ export function SellForm() {
           <CardTitle>Part details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              onGenerate("ai");
+            }}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          >
             <Field label="Part type" required>
               <Input value={input.partType} onChange={(e) => set("partType", e.target.value)} placeholder="Headlight" required />
             </Field>
@@ -133,9 +150,19 @@ export function SellForm() {
                 />
               </Field>
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onGenerate("template")}
+                disabled={loading}
+              >
+                <FileText className="h-4 w-4" />
+                {activeMode === "template" ? "Generating…" : "Use template"}
+              </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Generating…" : "Generate listing"}
+                <Sparkles className="h-4 w-4" />
+                {activeMode === "ai" ? "Generating…" : "Generate with Claude"}
               </Button>
             </div>
           </form>
@@ -147,14 +174,32 @@ export function SellForm() {
       {(loading || partial) && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
               {loading && (
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
               )}
-              {loading ? "Generating listing…" : "Generated listing"}
+              <span>{loading ? "Generating listing…" : "Generated listing"}</span>
+              {generatedBy && (
+                <Badge variant={generatedBy === "ai" ? "default" : "secondary"} className="ml-auto">
+                  {generatedBy === "ai" ? (
+                    <><Sparkles className="mr-1 h-3 w-3" /> Claude</>
+                  ) : (
+                    <><FileText className="mr-1 h-3 w-3" /> Template</>
+                  )}
+                </Badge>
+              )}
+              {activeMode && (
+                <Badge variant="outline" className="ml-auto">
+                  {activeMode === "ai" ? (
+                    <><Sparkles className="mr-1 h-3 w-3" /> Claude</>
+                  ) : (
+                    <><FileText className="mr-1 h-3 w-3" /> Template</>
+                  )}
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getListingById } from "@/lib/data";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { EditListingForm } from "./edit-listing-form";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   const { id } = await params;
 
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser(cookieStore);
   if (!user) redirect("/login");
 
   const listing = await getListingById(id);

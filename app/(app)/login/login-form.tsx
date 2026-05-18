@@ -1,10 +1,7 @@
 "use client";
 
-import { useState } from "react";
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
-import { useSearchParams } from "next/navigation";
-=======
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,18 +11,27 @@ import { createBrowserClient } from "@/lib/supabase";
 type Mode = "login" | "register";
 
 export function LoginForm() {
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialMode: Mode = searchParams.get("mode") === "signup" ? "register" : "login";
+  const requestedMode: Mode = searchParams.get("mode") === "signup" ? "register" : "login";
 
-  const [mode, setMode] = useState<Mode>(initialMode);
-=======
-  const [mode, setMode] = useState<Mode>("login");
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
+  const [mode, setMode] = useState<Mode>(requestedMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMode(requestedMode);
+    setError(null);
+  }, [requestedMode]);
+
+  function switchMode() {
+    const nextMode: Mode = mode === "login" ? "register" : "login";
+    setMode(nextMode);
+    setError(null);
+    router.replace(nextMode === "register" ? "/login?mode=signup" : "/login", { scroll: false });
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,11 +51,7 @@ export function LoginForm() {
       return;
     }
 
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
     window.location.assign("/");
-=======
-    window.location.href = "/";
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
   }
 
   return (
@@ -84,15 +86,11 @@ export function LoginForm() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "…" : mode === "login" ? "Sign in" : "Create account"}
+            {loading ? "..." : mode === "login" ? "Sign in" : "Create account"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             {mode === "login" ? "No account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              className="underline"
-              onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
-            >
+            <button type="button" className="underline" onClick={switchMode}>
               {mode === "login" ? "Register" : "Sign in"}
             </button>
           </p>

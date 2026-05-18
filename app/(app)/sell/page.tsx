@@ -3,13 +3,12 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { SellForm } from "./sell-form";
 
 export default async function SellPage() {
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser(cookieStore);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

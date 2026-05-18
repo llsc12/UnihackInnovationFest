@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { getListingById, isListingSaved } from "@/lib/data";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { computeTrustScore } from "@/lib/trust-score";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +29,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const trust = computeTrustScore(listing);
 
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser(cookieStore);
   const isOwner = user != null && listing.userId === user.id;
   const initiallySaved = user ? await isListingSaved(user.id, listing.id) : false;
 

@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { saveListing, unsaveListing } from "@/lib/data";
 
 interface Ctx {
@@ -12,9 +12,7 @@ interface Ctx {
 
 async function requireUser() {
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return getCurrentUser(cookieStore);
 }
 
 export async function POST(_req: Request, { params }: Ctx) {
@@ -25,7 +23,6 @@ export async function POST(_req: Request, { params }: Ctx) {
     await saveListing(user.id, id);
     return NextResponse.json({ saved: true }, { status: 201 });
   } catch (err) {
-    console.error("POST /api/saves/[id] failed:", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -38,7 +35,6 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     await unsaveListing(user.id, id);
     return NextResponse.json({ saved: false });
   } catch (err) {
-    console.error("DELETE /api/saves/[id] failed:", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

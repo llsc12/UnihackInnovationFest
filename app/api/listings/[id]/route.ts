@@ -3,14 +3,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getListingById, updateListing } from "@/lib/data";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const cookieStore = await cookies();
-    const supabase = createSessionServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser(cookieStore);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const listing = await getListingById(id);

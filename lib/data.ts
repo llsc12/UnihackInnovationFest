@@ -154,6 +154,9 @@ export async function saveListing(userId: string, listingId: string): Promise<vo
       { user_id: userId, listing_id: listingId },
       { onConflict: "user_id,listing_id", ignoreDuplicates: true },
     );
+  if (isMissingSavedListingsTable(error)) {
+    throw new Error(savedListingsMigrationMessage());
+  }
   if (error) throw new Error(`saveListing: ${error.message}`);
 }
 
@@ -164,6 +167,9 @@ export async function unsaveListing(userId: string, listingId: string): Promise<
     .delete()
     .eq("user_id", userId)
     .eq("listing_id", listingId);
+  if (isMissingSavedListingsTable(error)) {
+    throw new Error(savedListingsMigrationMessage());
+  }
   if (error) throw new Error(`unsaveListing: ${error.message}`);
 }
 
@@ -175,6 +181,7 @@ export async function isListingSaved(userId: string, listingId: string): Promise
     .eq("user_id", userId)
     .eq("listing_id", listingId)
     .maybeSingle();
+  if (isMissingSavedListingsTable(error)) return false;
   if (error) throw new Error(`isListingSaved: ${error.message}`);
   return data !== null;
 }
@@ -185,6 +192,7 @@ export async function getSavedListingIds(userId: string): Promise<string[]> {
     .from("saved_listings")
     .select("listing_id")
     .eq("user_id", userId);
+  if (isMissingSavedListingsTable(error)) return [];
   if (error) throw new Error(`getSavedListingIds: ${error.message}`);
   return (data ?? []).map((r) => r.listing_id);
 }
@@ -200,9 +208,22 @@ export async function getSavedListings(userId: string): Promise<Listing[]> {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
+  if (isMissingSavedListingsTable(error)) return [];
   if (error) throw new Error(`getSavedListings: ${error.message}`);
   // eslint-disable-next-line
   return (data ?? []).map((row: any) => rowToListing(row.listing));
+}
+
+function isMissingSavedListingsTable(error: { code?: string; message?: string } | null) {
+  return (
+    error?.code === "42P01" ||
+    /saved_listings.*does not exist/i.test(error?.message ?? "") ||
+    /Could not find the table.*saved_listings/i.test(error?.message ?? "")
+  );
+}
+
+function savedListingsMigrationMessage() {
+  return "Saved listings table is missing. Run supabase/migrations/004_saved_listings.sql against the local database.";
 }
 
 // eslint-disable-next-line

@@ -4,28 +4,12 @@
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import type { User } from "@supabase/supabase-js";
-import { createSessionServerClient } from "@/lib/supabase";
-import { isSupabaseAuthCookieName } from "@/lib/supabase-cookies";
+import { getCurrentUser } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
 
 export async function SiteHeader() {
   const cookieStore = await cookies();
-  const hasAuthCookie = cookieStore
-    .getAll()
-    .some(({ name }) => isSupabaseAuthCookieName(name));
-
-  let user: User | null = null;
-
-  if (hasAuthCookie) {
-    const supabase = createSessionServerClient(cookieStore);
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (!error) user = data.user;
-    } catch {
-      user = null;
-    }
-  }
+  const user = await getCurrentUser(cookieStore);
 
   return (
     <header className="site-header">

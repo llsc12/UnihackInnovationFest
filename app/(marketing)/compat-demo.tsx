@@ -1,14 +1,12 @@
 "use client";
 
-// In-page compatibility demo from the hero. Backed by a real listing
-// + real algorithms (lib/compatibility.ts, lib/trust-score.ts).
-// The full checker lives at /listings/[id] — this one drives the marketing pitch.
+// In-page compatibility demo from the hero. The detailed checker lives at
+// /listings/[id]; this compact version calls the same API endpoint.
 
-import { useMemo, useState } from "react";
-import { checkCompatibility } from "@/lib/compatibility";
+import { useEffect, useMemo, useState } from "react";
 import { computeTrustScore } from "@/lib/trust-score";
 import { formatYearRange } from "@/lib/utils";
-import type { Listing, Vehicle } from "@/lib/types";
+import type { CompatibilityResult, Listing, Vehicle } from "@/lib/types";
 
 const TABS = ["Compatibility Check", "Part Details", "Seller Info"] as const;
 type Tab = (typeof TABS)[number];
@@ -21,43 +19,87 @@ interface Props {
 export function CompatDemo({ listing, vehicles }: Props) {
   const trust = useMemo(() => computeTrustScore(listing), [listing]);
 
-  // Default the dropdowns to a vehicle the listing actually fits (green out of the box).
   const initial: Vehicle = useMemo(() => {
     const fit = listing.fitsVehicles[0];
     const match = vehicles.find(
-      (v) => v.make === fit?.make && v.model === fit?.model && v.year >= fit.yearFrom && v.year <= fit.yearTo
+      (v) => v.make === fit?.make && v.model === fit?.model && v.year >= fit.yearFrom && v.year <= fit.yearTo,
     );
-    return match ?? vehicles[0];
+
+    return match ?? vehicles[0] ?? {
+      make: listing.input.make,
+      model: listing.input.model,
+      year: listing.input.yearFrom,
+    };
   }, [listing, vehicles]);
 
   const [tab, setTab] = useState<Tab>("Compatibility Check");
   const [make, setMake] = useState(initial.make);
   const [model, setModel] = useState(initial.model);
   const [year, setYear] = useState<number>(initial.year);
+  const [result, setResult] = useState<CompatibilityResult | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
-  // Distinct options from the vehicle list — flat selects so the user can pick
-  // mismatches and see the algorithm respond (compatible / maybe / not).
   const makes = useMemo(() => unique(vehicles.map((v) => v.make)), [vehicles]);
   const models = useMemo(() => unique(vehicles.map((v) => v.model)), [vehicles]);
   const years = useMemo(() => unique(vehicles.map((v) => v.year)).sort((a, b) => b - a), [vehicles]);
 
-  const result = useMemo(
-    () => checkCompatibility(listing, { make, model, year }),
-    [listing, make, model, year]
-  );
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function runCheck() {
+      setChecking(true);
+      setCheckError(null);
+
+      try {
+        const res = await fetch("/api/compatibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            listingId: listing.id,
+            vehicle: { make, model, year },
+          }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) throw new Error("Compatibility check failed.");
+        setResult((await res.json()) as CompatibilityResult);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setResult(null);
+        setCheckError(err instanceof Error ? err.message : "Compatibility check failed.");
+      } finally {
+        if (!controller.signal.aborted) setChecking(false);
+      }
+    }
+
+    runCheck();
+
+    return () => controller.abort();
+  }, [listing.id, make, model, year]);
 
   const rowClass =
-    result.verdict === "compatible"
+    result?.verdict === "compatible"
       ? "result-row"
-      : result.verdict === "maybe"
+      : result?.verdict === "maybe"
       ? "result-row warning-result"
       : "result-row bad-result";
 
   const title =
-    result.verdict === "compatible" ? "Compatible" : result.verdict === "maybe" ? "Check Required" : "Not Compatible";
+    result?.verdict === "compatible"
+      ? "Compatible"
+      : result?.verdict === "maybe"
+      ? "Check Required"
+      : result
+      ? "Not Compatible"
+      : checking
+      ? "Checking fit"
+      : "Check unavailable";
 
+  const icon = result?.verdict === "compatible" ? "OK" : result?.verdict === "maybe" ? "?" : "X";
   const fit = listing.fitsVehicles[0];
-  const fitsLabel = fit ? `${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : "—";
+  const fitsLabel = fit ? `${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : "-";
+  const reasonText = result?.reasons.at(-1) ?? checkError ?? "Checking against compatibility data...";
 
   return (
     <div className="hero-demo-card" id="demo">
@@ -119,8 +161,8 @@ export function CompatDemo({ listing, vehicles }: Props) {
 
               <label>
                 Trim
-                <select defaultValue="—">
-                  <option>—</option>
+                <select defaultValue="-">
+                  <option>-</option>
                   <option>SV</option>
                   <option>SE</option>
                   <option>M Sport</option>
@@ -130,18 +172,16 @@ export function CompatDemo({ listing, vehicles }: Props) {
 
             <div className={rowClass}>
               <div className="result-left">
-                <div className="check-icon">
-                  {result.verdict === "compatible" ? "✓" : result.verdict === "maybe" ? "?" : "✗"}
-                </div>
+                <div className="check-icon">{icon}</div>
                 <div>
                   <h4>{title}</h4>
-                  <p>{result.reasons[result.reasons.length - 1] ?? ""}</p>
+                  <p>{reasonText}</p>
                 </div>
               </div>
 
               <div className="confidence">
                 <p>Confidence</p>
-                <strong>{Math.round(result.confidence * 100)}%</strong>
+                <strong>{result ? `${Math.round(result.confidence * 100)}%` : "--"}</strong>
               </div>
             </div>
           </div>
@@ -149,11 +189,15 @@ export function CompatDemo({ listing, vehicles }: Props) {
           <div className="why-box">
             <div>
               <h3>Why it fits</h3>
-              <ul>
-                {result.reasons.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
+              {result ? (
+                <ul>
+                  {result.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              ) : (
+                <p>{checkError ?? "Loading compatibility reasons..."}</p>
+              )}
             </div>
-            <div className="car-outline">🚗</div>
+            <div className="car-outline">CAR</div>
           </div>
         </>
       )}
@@ -178,7 +222,7 @@ export function CompatDemo({ listing, vehicles }: Props) {
           <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: 8 }}>
             <li><strong>Status:</strong> {listing.seller.verified ? "Verified seller" : "Unverified"}</li>
             {listing.seller.rating != null && (
-              <li><strong>Rating:</strong> ★ {listing.seller.rating} ({listing.seller.reviewCount} reviews)</li>
+              <li><strong>Rating:</strong> {listing.seller.rating} ({listing.seller.reviewCount} reviews)</li>
             )}
             {listing.seller.location && <li><strong>Location:</strong> {listing.seller.location}</li>}
             <li><strong>Returns:</strong> {listing.input.hasReturnPolicy ? "Available" : "Not offered"}</li>

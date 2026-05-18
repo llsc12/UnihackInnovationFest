@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createListing } from "@/lib/data";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { search } from "@/lib/search";
 
 export async function GET(req: Request) {
@@ -23,8 +23,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
-    const supabase = createSessionServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser(cookieStore);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { input, generated } = await req.json();

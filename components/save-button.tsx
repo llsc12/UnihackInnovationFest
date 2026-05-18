@@ -18,20 +18,22 @@ interface Props {
 export function SaveButton({ listingId, initiallySaved, loggedIn, className, size = "default" }: Props) {
   const [saved, setSaved] = useState(initiallySaved);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function toggle() {
     if (!loggedIn || pending) return;
     const next = !saved;
     setSaved(next);
     setPending(true);
+    setError(null);
     try {
       const res = await fetch(`/api/saves/${encodeURIComponent(listingId)}`, {
         method: next ? "POST" : "DELETE",
       });
       if (!res.ok) throw new Error(`save toggle failed: ${res.status}`);
-    } catch (err) {
-      console.error(err);
+    } catch {
       setSaved(!next); // revert
+      setError("Saving is unavailable until the database migration runs.");
     } finally {
       setPending(false);
     }
@@ -51,6 +53,7 @@ export function SaveButton({ listingId, initiallySaved, loggedIn, className, siz
     >
       <Heart className="h-4 w-4" fill={heartFill} strokeWidth={2} />
       <span>{label}</span>
+      {error && <span className="sr-only">{error}</span>}
     </button>
   );
 }

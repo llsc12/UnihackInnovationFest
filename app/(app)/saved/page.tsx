@@ -3,14 +3,13 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { getSavedListings } from "@/lib/data";
 import { ListingCard } from "@/components/listing-card";
 
 export default async function SavedPage() {
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser(cookieStore);
 
   if (!user) {
     return (

@@ -5,19 +5,24 @@
 export const dynamic = "force-dynamic";
 
 import { cookies } from "next/headers";
-import { createSessionServerClient } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { getAllListings, getSavedListingIds } from "@/lib/data";
 import { PartSwiper } from "./part-swiper";
 
 export default async function DiscoverPage() {
   const cookieStore = await cookies();
-  const supabase = createSessionServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser(cookieStore);
 
-  const [listings, initialSavedIds] = await Promise.all([
-    getAllListings(),
-    user ? getSavedListingIds(user.id) : Promise.resolve<string[]>([]),
-  ]);
+  const listings = await getAllListings();
+  let initialSavedIds: string[] = [];
+
+  if (user) {
+    try {
+      initialSavedIds = await getSavedListingIds(user.id);
+    } catch {
+      initialSavedIds = [];
+    }
+  }
 
   return (
     <main className="swipe-page">

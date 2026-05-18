@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { search } from "@/lib/search";
+import { ListingCard } from "@/components/listing-card";
 import { SearchBar } from "./search-bar";
 
 interface PageProps {

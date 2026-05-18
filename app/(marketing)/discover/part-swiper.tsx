@@ -22,6 +22,7 @@ export function PartSwiper({ listings, initialSavedIds, loggedIn }: Props) {
   const [compared, setCompared] = useState<string[]>([]);
   const [statsOpen, setStatsOpen] = useState(false);
   const [pendingLike, setPendingLike] = useState(false);
+  const [likeError, setLikeError] = useState<string | null>(null);
 
   if (listings.length === 0) {
     return (
@@ -46,14 +47,15 @@ export function PartSwiper({ listings, initialSavedIds, loggedIn }: Props) {
     const next = !isLiked;
     setSaved((s) => (next ? [...s, listing.id] : s.filter((id) => id !== listing.id)));
     setPendingLike(true);
+    setLikeError(null);
     try {
       const res = await fetch(`/api/saves/${encodeURIComponent(listing.id)}`, {
         method: next ? "POST" : "DELETE",
       });
       if (!res.ok) throw new Error(`save toggle failed: ${res.status}`);
-    } catch (err) {
-      console.error(err);
+    } catch {
       setSaved((s) => (next ? s.filter((id) => id !== listing.id) : [...s, listing.id]));
+      setLikeError("Saving is unavailable until the database migration runs.");
     } finally {
       setPendingLike(false);
     }
@@ -182,7 +184,9 @@ export function PartSwiper({ listings, initialSavedIds, loggedIn }: Props) {
       <section className="saved-bar">
         <h2>Saved parts</h2>
         <p>
-          {!loggedIn
+          {likeError
+            ? likeError
+            : !loggedIn
             ? "Log in to save parts."
             : savedNames.length === 0
             ? "No parts liked yet."

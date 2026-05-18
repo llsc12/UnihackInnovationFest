@@ -3,9 +3,17 @@ import { createServerClient as createSSRServer, createBrowserClient as createSSR
 import type { cookies } from "next/headers";
 
 function supabaseUrl() {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!url) throw new Error("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) must be set.");
   return url;
+}
+
+// Cookie names are derived from the public URL hostname (what the browser uses).
+// In Docker the server calls a different internal URL, so we pin the storageKey
+// to the public hostname so browser-written cookies are found server-side.
+function authStorageKey() {
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  return `sb-${new URL(publicUrl).hostname}-auth-token`;
 }
 
 // ── Service-role client (bypasses RLS) ────────────────────────────────────────
@@ -19,9 +27,7 @@ export function createServerClient() {
 // ── Session-aware server client (respects RLS, reads cookies) ─────────────────
 // Pass the Next.js `cookies()` store from a Server Component or Route Handler.
 export function createSessionServerClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createSSRServer(url, key, {
+  return createSSRServer(supabaseUrl(), process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (pairs) => {
@@ -32,6 +38,7 @@ export function createSessionServerClient(cookieStore: Awaited<ReturnType<typeof
         }
       },
     },
+    auth: { storageKey: authStorageKey() },
   });
 }
 

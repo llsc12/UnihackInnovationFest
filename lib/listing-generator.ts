@@ -1,6 +1,10 @@
 // STREAM 1 — Listing Generator.
 // Generates a clean listing from raw seller input.
 // Uses Claude if ANTHROPIC_API_KEY is set; otherwise falls back to deterministic templates.
+//
+// Two entry points:
+//   generateListing(input)       -> Promise<GeneratedListing>   (one-shot, for tests / server-side use)
+//   generateListingStream(input) -> AsyncIterable<string>       (streams JSON text chunks for the UI)
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { GeneratedListing, ListingInput } from "@/lib/types";
@@ -15,6 +19,27 @@ export async function generateListing(input: ListingInput): Promise<GeneratedLis
     }
   }
   return generateWithTemplate(input);
+}
+
+// Streams the JSON of a GeneratedListing as text chunks.
+// Falls back to a fake typewriter over the template if no API key OR if Claude fails
+// before yielding any output. (If Claude fails mid-stream we propagate the error —
+// can't cleanly switch to a template after partial output has already gone to the client.)
+export async function* generateListingStream(input: ListingInput): AsyncIterable<string> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    let yieldedAny = false;
+    try {
+      for await (const chunk of generateWithClaudeStream(input)) {
+        yieldedAny = true;
+        yield chunk;
+      }
+      return;
+    } catch (err) {
+      console.error("Claude streaming failed:", err);
+      if (yieldedAny) throw err;
+    }
+  }
+  yield* generateWithTemplateStream(input);
 }
 
 // ---------- Template fallback (always works, no API key needed) ----------
@@ -57,9 +82,50 @@ export function generateWithTemplate(input: ListingInput): GeneratedListing {
 
 async function generateWithClaude(input: ListingInput): Promise<GeneratedListing> {
   const client = new Anthropic();
-  const model = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5";
+  const res = await client.messages.create({
+    model: claudeModel(),
+    max_tokens: 600,
+    messages: [{ role: "user", content: buildPrompt(input) }],
+  });
 
-  const prompt = `You are writing a listing for a used car part marketplace. Output ONLY valid minified JSON matching this TypeScript type:
+  const text = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  return JSON.parse(text) as GeneratedListing;
+}
+
+async function* generateWithClaudeStream(input: ListingInput): AsyncIterable<string> {
+  const client = new Anthropic();
+  const stream = client.messages.stream({
+    model: claudeModel(),
+    max_tokens: 600,
+    messages: [{ role: "user", content: buildPrompt(input) }],
+  });
+
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      yield event.delta.text;
+    }
+  }
+}
+
+// Fake typewriter so the no-API-key path still feels alive in the UI.
+async function* generateWithTemplateStream(input: ListingInput): AsyncIterable<string> {
+  const json = JSON.stringify(generateWithTemplate(input));
+  for (let i = 0; i < json.length; i += 4) {
+    yield json.slice(i, i + 4);
+    await new Promise((r) => setTimeout(r, 12));
+  }
+}
+
+function claudeModel(): string {
+  return process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5";
+}
+
+function buildPrompt(input: ListingInput): string {
+  return `You are writing a listing for a used car part marketplace. Output ONLY valid minified JSON matching this TypeScript type:
 { "title": string, "description": string, "conditionNotes": string, "compatibilitySummary": string, "keywords": string[] }
 
 Seller input:
@@ -71,19 +137,6 @@ Rules:
 - Keywords: 5-10 useful search terms, no duplicates.
 - Do not invent a part number, only use the one provided.
 - No markdown, no preamble, JSON only.`;
-
-  const res = await client.messages.create({
-    model,
-    max_tokens: 600,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-
-  return JSON.parse(text) as GeneratedListing;
 }
 
 // ---------- helpers ----------

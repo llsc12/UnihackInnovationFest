@@ -31,6 +31,7 @@ export function SellForm() {
   const [input, setInput] = useState<ListingInput>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState<GeneratedListing | null>(null);
+  const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof ListingInput>(key: K, value: ListingInput[K]) {
@@ -42,14 +43,28 @@ export function SellForm() {
     setLoading(true);
     setError(null);
     setGenerated(null);
+    setStreamingText("");
     try {
       const res = await fetch("/api/generate-listing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error(await res.text());
-      setGenerated((await res.json()) as GeneratedListing);
+      if (!res.ok || !res.body) throw new Error(await res.text());
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        setStreamingText(buffer);
+      }
+      buffer += decoder.decode();
+
+      setGenerated(JSON.parse(buffer) as GeneratedListing);
+      setStreamingText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -124,6 +139,25 @@ export function SellForm() {
       </Card>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {streamingText && !generated && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Generating…
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
+              {streamingText}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
 
       {generated && (
         <Card>

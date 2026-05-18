@@ -53,7 +53,6 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
-      - ./supabase/seed.sql:/docker-entrypoint-initdb.d/999_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -h localhost"]
       interval: 5s

@@ -42,6 +42,12 @@ export async function search(query: SearchQuery): Promise<SearchResult[]> {
       }
     }
 
+    // Hard filters — exclude non-matching listings entirely
+    if (query.condition && listing.input.condition !== query.condition) continue;
+    if (query.priceMin != null && (listing.input.price == null || listing.input.price < query.priceMin)) continue;
+    if (query.priceMax != null && (listing.input.price == null || listing.input.price > query.priceMax)) continue;
+    if (query.verifiedOnly && !listing.seller.verified) continue;
+
     if (score > 0 || (!q && !query.make && !query.model && !query.partType && !query.year)) {
       results.push({ listing, score });
     }

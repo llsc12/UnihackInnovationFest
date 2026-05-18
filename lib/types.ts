@@ -90,6 +90,10 @@ export interface SearchQuery {
   model?: string;
   year?: number;
   partType?: string;
+  condition?: Condition;
+  priceMin?: number;
+  priceMax?: number;
+  verifiedOnly?: boolean;
 }
 
 export interface SearchResult {

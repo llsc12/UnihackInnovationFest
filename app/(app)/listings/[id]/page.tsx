@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { TrustScoreBadge } from "@/components/trust-score-badge";
 import { SaveButton } from "@/components/save-button";
 import { CompatibilityChecker } from "./compatibility-checker";
+import { ImageGallery } from "@/components/image-gallery";
 import { formatPrice, formatYearRange } from "@/lib/utils";
 import { CheckCircle2, XCircle } from "lucide-react";
 
@@ -35,26 +36,11 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const initiallySaved = user ? await isListingSaved(user.id, listing.id) : false;
 
   const images = listing.input.images?.length ? listing.input.images : ["/placeholder.svg"];
-  const [primaryImage, ...thumbs] = images;
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-6">
-        <div className="detail-gallery">
-          <div className="detail-gallery-main" style={{ backgroundImage: `url("${primaryImage}")` }} aria-hidden />
-          {thumbs.length > 0 && (
-            <div className="detail-gallery-thumbs">
-              {thumbs.map((src, i) => (
-                <div
-                  key={i}
-                  className="detail-gallery-thumb"
-                  style={{ backgroundImage: `url("${src}")` }}
-                  aria-hidden
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <ImageGallery images={images} alt={listing.generated.title} />
 
         <header className="space-y-3">
           <div className="flex items-start justify-between gap-4">

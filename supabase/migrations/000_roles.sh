@@ -27,18 +27,20 @@ psql -v ON_ERROR_STOP=1 \
       CREATE ROLE authenticator NOINHERIT LOGIN;
     END IF;
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
-      CREATE ROLE supabase_auth_admin NOINHERIT LOGIN;
+      CREATE ROLE supabase_auth_admin NOINHERIT CREATEROLE NOREPLICATION LOGIN;
     END IF;
   END
   $$;
 
   -- Set passwords for login roles (:'pgpass' is substituted by psql, not bash)
   ALTER ROLE authenticator       WITH PASSWORD :'pgpass';
-  ALTER ROLE supabase_auth_admin WITH PASSWORD :'pgpass';
+  ALTER ROLE supabase_auth_admin WITH CREATEROLE NOREPLICATION PASSWORD :'pgpass';
 
   -- GoTrue queries auth tables without the schema prefix, so its role must
   -- default to the auth search_path.
-  ALTER ROLE supabase_auth_admin SET search_path TO auth;
+  -- extensions schema is where supabase/postgres installs pgcrypto / uuid-ossp;
+  -- public is a fallback for installs that put them there instead.
+  ALTER ROLE supabase_auth_admin SET search_path TO auth, extensions, public;
 
   -- Role hierarchy PostgREST needs to switch into
   GRANT anon          TO authenticator;

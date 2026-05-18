@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const listing = getListingById(listingId);
+    const listing = await getListingById(listingId);
     if (!listing) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     }

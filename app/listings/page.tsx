@@ -10,7 +10,7 @@ interface PageProps {
 
 export default async function ListingsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const results = search({
+  const results = await search({
     q: params.q,
     make: params.make,
     model: params.model,

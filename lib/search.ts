@@ -10,8 +10,8 @@
 import { getAllListings } from "@/lib/data";
 import type { Listing, SearchQuery, SearchResult } from "@/lib/types";
 
-export function search(query: SearchQuery): SearchResult[] {
-  const listings = getAllListings();
+export async function search(query: SearchQuery): Promise<SearchResult[]> {
+  const listings = await getAllListings();
   const q = (query.q ?? "").trim().toLowerCase();
 
   const results: SearchResult[] = [];

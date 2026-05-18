@@ -16,7 +16,7 @@ interface PageProps {
 
 export default async function ListingDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const listing = getListingById(id);
+  const listing = await getListingById(id);
   if (!listing) notFound();
 
   const trust = computeTrustScore(listing);

@@ -5,8 +5,8 @@ import { ListingCard } from "@/components/listing-card";
 import { Button } from "@/components/ui/button";
 import { getAllListings } from "@/lib/data";
 
-export default function HomePage() {
-  const featured = getAllListings().slice(0, 3);
+export default async function HomePage() {
+  const featured = (await getAllListings()).slice(0, 3);
 
   return (
     <div className="space-y-12">

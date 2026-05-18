@@ -7,7 +7,7 @@ import { search } from "@/lib/search";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const yearStr = url.searchParams.get("year");
-  const results = search({
+  const results = await search({
     q: url.searchParams.get("q") ?? undefined,
     make: url.searchParams.get("make") ?? undefined,
     model: url.searchParams.get("model") ?? undefined,

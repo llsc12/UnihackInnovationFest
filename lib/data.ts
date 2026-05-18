@@ -72,7 +72,6 @@ export async function getCompatibilityRules(): Promise<Record<string, Compatibil
   return rules;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowToListing(row: any): Listing {
   return {
     id: row.id,

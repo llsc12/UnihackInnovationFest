@@ -919,6 +919,92 @@ html { scroll-behavior: smooth; }
   font-size: 1.05rem;
 }
 
+/* ============================================================ */
+/* Seller profile page                                          */
+/* ============================================================ */
+
+.autoreviver-landing .seller-profile {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 0 60px;
+}
+
+.autoreviver-landing .seller-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: white;
+  border: 1px solid var(--ar-border);
+  border-radius: 20px;
+  padding: 32px 36px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+  margin-bottom: 40px;
+}
+
+.autoreviver-landing .seller-avatar-large {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ar-red), #810008);
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 1.8rem;
+  flex-shrink: 0;
+}
+
+.autoreviver-landing .seller-profile-name {
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.autoreviver-landing .seller-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 152, 24, 0.1);
+  color: var(--ar-green);
+  border: 1px solid rgba(10, 152, 24, 0.25);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.autoreviver-landing .seller-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  color: #555d66;
+  font-size: 0.95rem;
+}
+
+.autoreviver-landing .seller-profile-section-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 20px;
+  letter-spacing: -0.3px;
+}
+
+@media (max-width: 600px) {
+  .autoreviver-landing .seller-profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px;
+  }
+}
+
+/* ============================================================ */
+/* Browse filters                                               */
+/* ============================================================ */
+
 .autoreviver-landing .browse-filters {
   display: flex;
   flex-wrap: wrap;

@@ -117,7 +117,9 @@ export default async function ListingDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <p className="font-medium">
-              {listing.seller.name}{" "}
+              <Link href={`/sellers/${listing.seller.id}`} className="hover:underline">
+                {listing.seller.name}
+              </Link>{" "}
               {listing.seller.verified && <Badge variant="success">Verified</Badge>}
             </p>
             {listing.seller.rating != null && (

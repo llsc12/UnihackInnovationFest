@@ -75,14 +75,23 @@ export async function getCompatibilityRules(): Promise<Record<string, Compatibil
 export async function createListing(
   input: ListingInput,
   generated: GeneratedListing,
-  sellerId = "slr_01",
+  userId: string,
 ): Promise<Listing> {
   const supabase = createServerClient();
   const id = `lst_${Date.now()}`;
 
+  // Upsert a seller record for this user if one doesn't exist yet
+  const email = userId; // placeholder display name until profile editing exists
+  const sellerId = `slr_${userId.slice(0, 8)}`;
+  await supabase.from("sellers").upsert(
+    { id: sellerId, name: email, verified: false, user_id: userId },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+
   const { error: listingError } = await supabase.from("listings").insert({
     id,
     seller_id: sellerId,
+    user_id: userId,
     part_type: input.partType,
     make: input.make,
     model: input.model,
@@ -107,10 +116,35 @@ export async function createListing(
   return listing;
 }
 
+export async function updateListing(
+  id: string,
+  input: Partial<ListingInput & GeneratedListing>,
+): Promise<void> {
+  const supabase = createServerClient();
+  const patch: Record<string, unknown> = {};
+  if (input.partType !== undefined) patch.part_type = input.partType;
+  if (input.make !== undefined) patch.make = input.make;
+  if (input.model !== undefined) patch.model = input.model;
+  if (input.yearFrom !== undefined) patch.year_from = input.yearFrom;
+  if (input.yearTo !== undefined) patch.year_to = input.yearTo;
+  if (input.condition !== undefined) patch.condition = input.condition;
+  if (input.partNumber !== undefined) patch.part_number = input.partNumber;
+  if (input.notes !== undefined) patch.notes = input.notes;
+  if (input.price !== undefined) patch.price = input.price;
+  if (input.title !== undefined) patch.title = input.title;
+  if (input.description !== undefined) patch.description = input.description;
+  if (input.conditionNotes !== undefined) patch.condition_notes = input.conditionNotes;
+  if (input.compatibilitySummary !== undefined) patch.compatibility_summary = input.compatibilitySummary;
+  if (input.keywords !== undefined) patch.keywords = input.keywords;
+  const { error } = await supabase.from("listings").update(patch).eq("id", id);
+  if (error) throw new Error(`updateListing: ${error.message}`);
+}
+
 // eslint-disable-next-line
 function rowToListing(row: any): Listing {
   return {
     id: row.id,
+    userId: row.user_id ?? undefined,
     input: {
       partType: row.part_type,
       make: row.make,

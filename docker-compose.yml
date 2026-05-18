@@ -28,7 +28,9 @@ services:
 
   # ── Next.js app ──────────────────────────────────────────────────────────────
   app:
-    build: .
+    build:
+      context: .
+      target: dev
     ports:
       - "3000:3000"
     environment:
@@ -46,6 +48,24 @@ services:
       auth:
         condition: service_started
     restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: sync
+          path: ./lib
+          target: /app/lib
+        - action: sync
+          path: ./components
+          target: /app/components
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: rebuild
+          path: package.json
+        - action: rebuild
+          path: package-lock.json
 
   # ── Postgres (Supabase-flavoured) ─────────────────────────────────────────────
   db:

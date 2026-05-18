@@ -7,6 +7,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# ── dev: hot-reloading dev server (used by docker compose watch) ──────────────
+FROM deps AS dev
+WORKDIR /app
+COPY . .
+EXPOSE 3000
+ENV PORT=3000 HOSTNAME=0.0.0.0
+CMD ["npm", "run", "dev"]
+
 # ── builder: compile the app ──────────────────────────────────────────────────
 FROM base AS builder
 WORKDIR /app

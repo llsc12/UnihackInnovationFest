@@ -36,6 +36,10 @@ psql -v ON_ERROR_STOP=1 \
   ALTER ROLE authenticator       WITH PASSWORD :'pgpass';
   ALTER ROLE supabase_auth_admin WITH PASSWORD :'pgpass';
 
+  -- GoTrue queries auth tables without the schema prefix, so its role must
+  -- default to the auth search_path.
+  ALTER ROLE supabase_auth_admin SET search_path TO auth;
+
   -- Role hierarchy PostgREST needs to switch into
   GRANT anon          TO authenticator;
   GRANT authenticated TO authenticator;
@@ -45,9 +49,12 @@ psql -v ON_ERROR_STOP=1 \
   GRANT USAGE, CREATE ON SCHEMA public TO supabase_auth_admin;
   GRANT USAGE, CREATE ON SCHEMA public TO authenticated, anon, service_role;
 
-  -- GoTrue expects an auth schema it owns
+  -- GoTrue expects an auth schema it owns.
+  -- auth.uid() / auth.role() are created by GoTrue on first start — do NOT
+  -- define them here or GoTrue won't be able to replace them (ownership error).
   CREATE SCHEMA IF NOT EXISTS auth;
   ALTER SCHEMA auth OWNER TO supabase_auth_admin;
   GRANT ALL ON SCHEMA auth TO supabase_auth_admin;
+  GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 
 EOSQL

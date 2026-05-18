@@ -1,29 +1,44 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient as createSSRServer, createBrowserClient as createSSRBrowser } from "@supabase/ssr";
+import type { cookies } from "next/headers";
 
-// Server-side client — uses service role key, bypasses RLS.
-// Only call from API routes and Server Components (never ship this key to the browser).
-// Uses SUPABASE_URL (internal Docker hostname) when set, falls back to NEXT_PUBLIC_SUPABASE_URL.
-export function createServerClient() {
+function supabaseUrl() {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) must be set. " +
-        "Copy .env.example → .env.local and fill in your Supabase project values."
-    );
-  }
-  return createClient(url, key, { auth: { persistSession: false } });
+  if (!url) throw new Error("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) must be set.");
+  return url;
 }
 
-// Browser-side client — uses anon key, subject to RLS.
-// Safe to import in Client Components.
+// ── Service-role client (bypasses RLS) ────────────────────────────────────────
+// Server-side only — never ship this key to the browser.
+export function createServerClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY must be set.");
+  return createClient(supabaseUrl(), key, { auth: { persistSession: false } });
+}
+
+// ── Session-aware server client (respects RLS, reads cookies) ─────────────────
+// Pass the Next.js `cookies()` store from a Server Component or Route Handler.
+export function createSessionServerClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSSRServer(url, key, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (pairs) => {
+        try {
+          pairs.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          // Server Component — cookie writes are ignored, middleware handles refresh
+        }
+      },
+    },
+  });
+}
+
+// ── Browser client (anon key, subject to RLS) ─────────────────────────────────
 export function createBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set."
-    );
-  }
-  return createClient(url, key);
+  if (!url || !key) throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.");
+  return createSSRBrowser(url, key);
 }

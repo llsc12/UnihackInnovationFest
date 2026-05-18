@@ -1,0 +1,108 @@
+// STREAM 1 — Listing Generator.
+// Generates a clean listing from raw seller input.
+// Uses Claude if ANTHROPIC_API_KEY is set; otherwise falls back to deterministic templates.
+
+import Anthropic from "@anthropic-ai/sdk";
+import type { GeneratedListing, ListingInput } from "@/lib/types";
+import { formatYearRange } from "@/lib/utils";
+
+export async function generateListing(input: ListingInput): Promise<GeneratedListing> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      return await generateWithClaude(input);
+    } catch (err) {
+      console.error("Claude generation failed, falling back to template:", err);
+    }
+  }
+  return generateWithTemplate(input);
+}
+
+// ---------- Template fallback (always works, no API key needed) ----------
+
+export function generateWithTemplate(input: ListingInput): GeneratedListing {
+  const years = formatYearRange(input.yearFrom, input.yearTo);
+  const conditionPhrase = conditionToPhrase(input.condition);
+
+  const title = `${input.make} ${input.model} ${input.partType} ${years}${
+    input.partNumber ? ` - ${input.partNumber}` : ""
+  }`;
+
+  const description =
+    `Used ${input.make} ${input.model} ${input.partType.toLowerCase()} in ${conditionPhrase} condition. ` +
+    `Suitable for ${input.make} ${input.model} models between ${input.yearFrom} and ${input.yearTo}. ` +
+    (input.notes ? `${input.notes} ` : "") +
+    (input.partNumber ? `Please confirm part number ${input.partNumber} before purchase.` : "Please confirm fitment before purchase.");
+
+  const conditionNotes = input.notes
+    ? `${capitalise(conditionPhrase)} condition. ${input.notes}`
+    : `${capitalise(conditionPhrase)} condition.`;
+
+  const compatibilitySummary = `Fits ${input.make} ${input.model} (${years}).${
+    input.partNumber ? ` Part no. ${input.partNumber}.` : ""
+  }`;
+
+  const keywords = [
+    input.make,
+    input.model,
+    input.partType,
+    ...(input.partNumber ? [input.partNumber] : []),
+    String(input.yearFrom),
+    String(input.yearTo),
+  ];
+
+  return { title, description, conditionNotes, compatibilitySummary, keywords };
+}
+
+// ---------- Claude path ----------
+
+async function generateWithClaude(input: ListingInput): Promise<GeneratedListing> {
+  const client = new Anthropic();
+  const model = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5";
+
+  const prompt = `You are writing a listing for a used car part marketplace. Output ONLY valid minified JSON matching this TypeScript type:
+{ "title": string, "description": string, "conditionNotes": string, "compatibilitySummary": string, "keywords": string[] }
+
+Seller input:
+${JSON.stringify(input, null, 2)}
+
+Rules:
+- Title: concise, includes make/model/part/years, max ~80 chars.
+- Description: 2-4 sentences, honest, mentions condition and any notes.
+- Keywords: 5-10 useful search terms, no duplicates.
+- Do not invent a part number, only use the one provided.
+- No markdown, no preamble, JSON only.`;
+
+  const res = await client.messages.create({
+    model,
+    max_tokens: 600,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const text = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  return JSON.parse(text) as GeneratedListing;
+}
+
+// ---------- helpers ----------
+
+function conditionToPhrase(c: ListingInput["condition"]): string {
+  switch (c) {
+    case "new":
+      return "new";
+    case "like-new":
+      return "like-new";
+    case "good":
+      return "good working";
+    case "fair":
+      return "fair, used";
+    case "for-parts":
+      return "for-parts (not working)";
+  }
+}
+
+function capitalise(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

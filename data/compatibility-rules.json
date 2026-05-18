@@ -1,0 +1,27 @@
+{
+  "Volkswagen|Golf": [
+    { "generation": "Mk6", "yearFrom": 2008, "yearTo": 2012 },
+    { "generation": "Mk7", "yearFrom": 2013, "yearTo": 2019, "notes": "Mk7 facelift from 2017 - confirm part number" },
+    { "generation": "Mk8", "yearFrom": 2020, "yearTo": 2026 }
+  ],
+  "Ford|Fiesta": [
+    { "generation": "Mk7", "yearFrom": 2008, "yearTo": 2017, "notes": "Mk7 facelift in 2013 - check trim" },
+    { "generation": "Mk8", "yearFrom": 2018, "yearTo": 2023 }
+  ],
+  "Ford|Focus": [
+    { "generation": "Mk3", "yearFrom": 2011, "yearTo": 2018 },
+    { "generation": "Mk4", "yearFrom": 2019, "yearTo": 2026 }
+  ],
+  "BMW|3 Series": [
+    { "generation": "F30/F31", "yearFrom": 2012, "yearTo": 2019 },
+    { "generation": "G20/G21", "yearFrom": 2019, "yearTo": 2026 }
+  ],
+  "Audi|A3": [
+    { "generation": "8V", "yearFrom": 2013, "yearTo": 2020 },
+    { "generation": "8Y", "yearFrom": 2020, "yearTo": 2026 }
+  ],
+  "Toyota|Corolla": [
+    { "generation": "E170", "yearFrom": 2014, "yearTo": 2018 },
+    { "generation": "E210", "yearFrom": 2019, "yearTo": 2026 }
+  ]
+}

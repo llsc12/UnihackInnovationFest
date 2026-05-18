@@ -1,0 +1,107 @@
+[
+  {
+    "id": "lst_001",
+    "input": {
+      "partType": "Headlight",
+      "make": "Volkswagen",
+      "model": "Golf",
+      "yearFrom": 2013,
+      "yearTo": 2017,
+      "condition": "good",
+      "partNumber": "5G1941005",
+      "notes": "Minor scratches on lens, fully working.",
+      "price": 85,
+      "images": ["/placeholder.svg", "/placeholder.svg"],
+      "hasReturnPolicy": true
+    },
+    "generated": {
+      "title": "Genuine Volkswagen Golf Mk7 Left Headlight 2013-2017",
+      "description": "Used genuine VW Golf Mk7 left headlight assembly in good working condition. Suitable for compatible Golf Mk7 models between 2013 and 2017. Minor cosmetic scratches present but does not affect function. Please confirm part number before purchase.",
+      "conditionNotes": "Used - minor cosmetic scratches on lens. Fully functional.",
+      "compatibilitySummary": "Fits Volkswagen Golf Mk7 (2013-2017). Confirm 5G1941005.",
+      "keywords": ["VW", "Golf", "Mk7", "headlight", "5G1941005", "2013", "2017"]
+    },
+    "seller": {
+      "id": "slr_01",
+      "name": "Northside Auto Salvage",
+      "verified": true,
+      "rating": 4.7,
+      "reviewCount": 312,
+      "location": "Manchester, UK"
+    },
+    "fitsVehicles": [
+      { "make": "Volkswagen", "model": "Golf", "yearFrom": 2013, "yearTo": 2017 }
+    ],
+    "createdAt": "2026-05-10T09:00:00.000Z"
+  },
+  {
+    "id": "lst_002",
+    "input": {
+      "partType": "Wing Mirror",
+      "make": "Ford",
+      "model": "Fiesta",
+      "yearFrom": 2013,
+      "yearTo": 2017,
+      "condition": "good",
+      "partNumber": "1810307",
+      "notes": "Right-hand drive, powered, electric fold.",
+      "price": 45,
+      "images": ["/placeholder.svg"],
+      "hasReturnPolicy": false
+    },
+    "generated": {
+      "title": "Ford Fiesta Mk7 Right Wing Mirror 2013-2017 - Powered",
+      "description": "Used Ford Fiesta Mk7 right-hand wing mirror with electric fold and heating. Removed from a 2015 vehicle. Fits Fiesta models 2013-2017.",
+      "conditionNotes": "Light scuffs on casing, motor works smoothly.",
+      "compatibilitySummary": "Fits Ford Fiesta Mk7 (2013-2017).",
+      "keywords": ["Ford", "Fiesta", "wing mirror", "1810307", "RHD", "electric"]
+    },
+    "seller": {
+      "id": "slr_02",
+      "name": "Mike's Parts",
+      "verified": false,
+      "rating": 4.2,
+      "reviewCount": 28,
+      "location": "Leeds, UK"
+    },
+    "fitsVehicles": [
+      { "make": "Ford", "model": "Fiesta", "yearFrom": 2013, "yearTo": 2017 }
+    ],
+    "createdAt": "2026-05-12T14:30:00.000Z"
+  },
+  {
+    "id": "lst_003",
+    "input": {
+      "partType": "Alternator",
+      "make": "BMW",
+      "model": "3 Series",
+      "yearFrom": 2012,
+      "yearTo": 2019,
+      "condition": "like-new",
+      "partNumber": "12317605061",
+      "notes": "Replaced under warranty, tested.",
+      "price": 220,
+      "images": ["/placeholder.svg", "/placeholder.svg", "/placeholder.svg"],
+      "hasReturnPolicy": true
+    },
+    "generated": {
+      "title": "BMW 3 Series F30 Alternator 12317605061 - Tested",
+      "description": "Genuine BMW alternator removed from a 2016 F30 320d. Fits various BMW F30/F31 3 Series models 2012-2019. Comes with 30-day return.",
+      "conditionNotes": "Like new, tested on bench. Original packaging.",
+      "compatibilitySummary": "Fits BMW 3 Series F30/F31 (2012-2019). Verify with VIN.",
+      "keywords": ["BMW", "3 Series", "F30", "alternator", "12317605061"]
+    },
+    "seller": {
+      "id": "slr_03",
+      "name": "EuroSpare Direct",
+      "verified": true,
+      "rating": 4.9,
+      "reviewCount": 1240,
+      "location": "Birmingham, UK"
+    },
+    "fitsVehicles": [
+      { "make": "BMW", "model": "3 Series", "yearFrom": 2012, "yearTo": 2019 }
+    ],
+    "createdAt": "2026-05-14T11:15:00.000Z"
+  }
+]

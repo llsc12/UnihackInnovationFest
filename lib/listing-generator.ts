@@ -7,8 +7,46 @@
 //   generateListingStream(input) -> AsyncIterable<string>       (streams JSON text chunks for the UI)
 
 import Anthropic from "@anthropic-ai/sdk";
+import { readFile } from "fs/promises";
+import { join } from "path";
 import type { GeneratedListing, ListingInput } from "@/lib/types";
 import { formatYearRange } from "@/lib/utils";
+
+type MediaType = "image/jpeg" | "image/png" | "image/webp";
+const EXT_TO_MIME: Record<string, MediaType> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+// Builds a multimodal message content block: images (if available) + text prompt.
+async function buildMessageContent(
+  input: ListingInput
+): Promise<Anthropic.MessageParam["content"]> {
+  const text = buildPrompt(input);
+  const urls = (input.images ?? []).filter((u) => u.startsWith("/uploads/")).slice(0, 4);
+
+  if (!urls.length) return text;
+
+  const imageBlocks: Anthropic.ImageBlockParam[] = [];
+  for (const url of urls) {
+    const filename = url.replace("/uploads/", "");
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+    const mediaType = EXT_TO_MIME[ext];
+    if (!mediaType) continue;
+    try {
+      const buffer = await readFile(join(process.cwd(), "public", "uploads", filename));
+      imageBlocks.push({
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: buffer.toString("base64") },
+      });
+    } catch { /* skip missing files */ }
+  }
+
+  if (!imageBlocks.length) return text;
+  return [...imageBlocks, { type: "text", text }];
+}
 
 export async function generateListing(input: ListingInput): Promise<GeneratedListing> {
   if (process.env.ANTHROPIC_API_KEY) {
@@ -82,10 +120,11 @@ export function generateWithTemplate(input: ListingInput): GeneratedListing {
 
 async function generateWithClaude(input: ListingInput): Promise<GeneratedListing> {
   const client = new Anthropic();
+  const content = await buildMessageContent(input);
   const res = await client.messages.create({
     model: claudeModel(),
     max_tokens: 600,
-    messages: [{ role: "user", content: buildPrompt(input) }],
+    messages: [{ role: "user", content }],
   });
 
   const text = res.content
@@ -98,10 +137,11 @@ async function generateWithClaude(input: ListingInput): Promise<GeneratedListing
 
 async function* generateWithClaudeStream(input: ListingInput): AsyncIterable<string> {
   const client = new Anthropic();
+  const content = await buildMessageContent(input);
   const stream = client.messages.stream({
     model: claudeModel(),
     max_tokens: 600,
-    messages: [{ role: "user", content: buildPrompt(input) }],
+    messages: [{ role: "user", content }],
   });
 
   for await (const event of stream) {

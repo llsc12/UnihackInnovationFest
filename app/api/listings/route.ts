@@ -2,6 +2,7 @@
 // Query: ?q=&make=&model=&year=&partType=    Response: SearchResult[]
 
 import { NextResponse } from "next/server";
+import { createListing } from "@/lib/data";
 import { search } from "@/lib/search";
 
 export async function GET(req: Request) {
@@ -15,4 +16,14 @@ export async function GET(req: Request) {
     year: yearStr ? Number(yearStr) : undefined,
   });
   return NextResponse.json(results);
+}
+
+export async function POST(req: Request) {
+  try {
+    const { input, generated } = await req.json();
+    const listing = await createListing(input, generated);
+    return NextResponse.json(listing, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }

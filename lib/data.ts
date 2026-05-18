@@ -3,7 +3,7 @@
 // without touching call sites if you ever need a different backend.
 
 import { createServerClient } from "@/lib/supabase";
-import type { Listing, Vehicle } from "@/lib/types";
+import type { GeneratedListing, Listing, ListingInput, Vehicle } from "@/lib/types";
 
 export interface CompatibilityRule {
   generation: string;
@@ -70,6 +70,41 @@ export async function getCompatibilityRules(): Promise<Record<string, Compatibil
     });
   }
   return rules;
+}
+
+export async function createListing(
+  input: ListingInput,
+  generated: GeneratedListing,
+  sellerId = "slr_01",
+): Promise<Listing> {
+  const supabase = createServerClient();
+  const id = `lst_${Date.now()}`;
+
+  const { error: listingError } = await supabase.from("listings").insert({
+    id,
+    seller_id: sellerId,
+    part_type: input.partType,
+    make: input.make,
+    model: input.model,
+    year_from: input.yearFrom,
+    year_to: input.yearTo,
+    condition: input.condition,
+    part_number: input.partNumber ?? null,
+    notes: input.notes ?? null,
+    price: input.price ?? null,
+    images: input.images ?? [],
+    has_return_policy: input.hasReturnPolicy ?? false,
+    title: generated.title,
+    description: generated.description,
+    condition_notes: generated.conditionNotes,
+    compatibility_summary: generated.compatibilitySummary,
+    keywords: generated.keywords,
+  });
+  if (listingError) throw new Error(`createListing: ${listingError.message}`);
+
+  const listing = await getListingById(id);
+  if (!listing) throw new Error("createListing: could not retrieve inserted listing");
+  return listing;
 }
 
 // eslint-disable-next-line

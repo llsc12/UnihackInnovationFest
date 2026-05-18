@@ -32,8 +32,13 @@ export async function search(query: SearchQuery): Promise<SearchResult[]> {
 
     if (q) {
       const haystack = listingHaystack(listing);
-      for (const term of q.split(/\s+/).filter(Boolean)) {
+      const terms = q.split(/\s+/).filter(Boolean);
+      for (const term of terms) {
         if (haystack.includes(term)) score += 1;
+      }
+      // Bonus for keyword overlap with AI-generated keywords
+      for (const kw of listing.generated.keywords) {
+        if (terms.some((t) => kw.toLowerCase().includes(t))) score += 0.5;
       }
     }
 

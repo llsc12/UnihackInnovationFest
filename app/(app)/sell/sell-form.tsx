@@ -1,20 +1,22 @@
 "use client";
 
-// STREAM 1 owns this client component.
-// TODO(stream-1):
-//   - Validation (zod?) before submit.
-//   - Image upload (or a URL list for now).
-//   - Persist the generated listing somewhere (Stream 5 to provide data layer).
+// STREAM 1 — sell form. Drives:
+//   - photo upload (api/upload)
+//   - vision pre-fill (api/analyse-image)
+//   - streamed AI/template generation (api/generate-listing)
+//   - post-stream EDITABLE preview (user can tweak title/description/etc before posting)
+//   - regenerate (re-run with current form input)
+//   - persistence (POST /api/listings)
 
 import { useState } from "react";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, RotateCw, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { ListingInput } from "@/lib/types";
+import type { GeneratedListing, ListingInput } from "@/lib/types";
 import {
   finalizeListing,
   parseListingSections,
@@ -40,6 +42,7 @@ export function SellForm() {
   const [input, setInput] = useState<ListingInput>(EMPTY);
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [partial, setPartial] = useState<PartialListing | null>(null);
+  const [editable, setEditable] = useState<GeneratedListing | null>(null);
   const [generatedBy, setGeneratedBy] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,6 +54,10 @@ export function SellForm() {
 
   function set<K extends keyof ListingInput>(key: K, value: ListingInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setEditableField<K extends keyof GeneratedListing>(key: K, value: GeneratedListing[K]) {
+    setEditable((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
   async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -118,6 +125,7 @@ export function SellForm() {
     setActiveMode(mode);
     setError(null);
     setPartial(null);
+    setEditable(null);
     setGeneratedBy(null);
     setPostedId(null);
     try {
@@ -138,7 +146,9 @@ export function SellForm() {
         setPartial(parseListingSections(buffer));
       }
       buffer += decoder.decode();
-      setPartial(parseListingSections(buffer));
+      const finalParsed = parseListingSections(buffer);
+      setPartial(finalParsed);
+      setEditable(finalizeListing(finalParsed));
       setGeneratedBy(mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -147,17 +157,15 @@ export function SellForm() {
     }
   }
 
-  const final = !loading && partial ? finalizeListing(partial) : null;
-
   async function onPost() {
-    if (!final) return;
+    if (!editable) return;
     setPosting(true);
     setError(null);
     try {
       const res = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, generated: final }),
+        body: JSON.stringify({ input, generated: editable }),
       });
       if (!res.ok) throw new Error(await res.text());
       const listing = await res.json();
@@ -167,6 +175,20 @@ export function SellForm() {
     } finally {
       setPosting(false);
     }
+  }
+
+  function onRegenerate() {
+    if (!generatedBy || loading) return;
+    onGenerate(generatedBy);
+  }
+
+  // Keywords displayed in the input as a comma-separated string.
+  const keywordsString = editable?.keywords.join(", ") ?? "";
+  function onKeywordsChange(value: string) {
+    setEditableField(
+      "keywords",
+      value.split(",").map((k) => k.trim()).filter(Boolean),
+    );
   }
 
   return (
@@ -237,6 +259,7 @@ export function SellForm() {
               <div className="flex flex-wrap gap-3">
                 {(input.images ?? []).map((url, i) => (
                   <div key={url} className="relative h-24 w-24 shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={url}
                       alt={`Part photo ${i + 1}`}
@@ -314,8 +337,14 @@ export function SellForm() {
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
               )}
-              <span>{loading ? "Generating listing…" : "Generated listing"}</span>
-              {generatedBy && (
+              <span>
+                {loading
+                  ? "Generating listing…"
+                  : editable
+                  ? "Generated listing — edit before posting"
+                  : "Generated listing"}
+              </span>
+              {generatedBy && !loading && (
                 <Badge variant={generatedBy === "ai" ? "default" : "secondary"} className="ml-auto">
                   {generatedBy === "ai" ? (
                     <><Sparkles className="mr-1 h-3 w-3" /> Claude</>
@@ -336,63 +365,117 @@ export function SellForm() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <StreamLine
-              value={partial?.title}
-              isActive={loading && partial?.activeField === "title"}
-              placeholder="Title…"
-              className="text-xl font-semibold leading-tight"
-            />
-            <StreamLine
-              value={partial?.description}
-              isActive={loading && partial?.activeField === "description"}
-              placeholder="Description…"
-              className="text-sm leading-relaxed"
-            />
-            <div className="grid gap-3 sm:grid-cols-2 pt-2">
-              <LabelledRow label="Condition">
+            {/* Streaming: read-only preview. Done streaming: editable inputs. */}
+            {loading || !editable ? (
+              <>
                 <StreamLine
-                  value={partial?.conditionNotes}
-                  isActive={loading && partial?.activeField === "conditionNotes"}
-                  placeholder="…"
-                  className="text-sm text-muted-foreground"
+                  value={partial?.title}
+                  isActive={loading && partial?.activeField === "title"}
+                  placeholder="Title…"
+                  className="text-xl font-semibold leading-tight"
                 />
-              </LabelledRow>
-              <LabelledRow label="Fits">
                 <StreamLine
-                  value={partial?.compatibilitySummary}
-                  isActive={loading && partial?.activeField === "compatibilitySummary"}
-                  placeholder="…"
-                  className="text-sm text-muted-foreground"
+                  value={partial?.description}
+                  isActive={loading && partial?.activeField === "description"}
+                  placeholder="Description…"
+                  className="text-sm leading-relaxed"
                 />
-              </LabelledRow>
-            </div>
-            <LabelledRow label="Keywords">
-              {final ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {final.keywords.map((k) => (
-                    <Badge key={k} variant="secondary">{k}</Badge>
-                  ))}
+                <div className="grid gap-3 sm:grid-cols-2 pt-2">
+                  <LabelledRow label="Condition">
+                    <StreamLine
+                      value={partial?.conditionNotes}
+                      isActive={loading && partial?.activeField === "conditionNotes"}
+                      placeholder="…"
+                      className="text-sm text-muted-foreground"
+                    />
+                  </LabelledRow>
+                  <LabelledRow label="Fits">
+                    <StreamLine
+                      value={partial?.compatibilitySummary}
+                      isActive={loading && partial?.activeField === "compatibilitySummary"}
+                      placeholder="…"
+                      className="text-sm text-muted-foreground"
+                    />
+                  </LabelledRow>
                 </div>
-              ) : (
-                <StreamLine
-                  value={partial?.keywordsRaw}
-                  isActive={loading && partial?.activeField === "keywordsRaw"}
-                  placeholder="…"
-                  className="text-sm text-muted-foreground"
-                />
-              )}
-            </LabelledRow>
-            {final && (
-              <div className="pt-2">
+                <LabelledRow label="Keywords">
+                  <StreamLine
+                    value={partial?.keywordsRaw}
+                    isActive={loading && partial?.activeField === "keywordsRaw"}
+                    placeholder="…"
+                    className="text-sm text-muted-foreground"
+                  />
+                </LabelledRow>
+              </>
+            ) : (
+              <>
+                <Field label="Title">
+                  <Input
+                    value={editable.title}
+                    onChange={(e) => setEditableField("title", e.target.value)}
+                    className="text-lg font-semibold"
+                  />
+                </Field>
+                <Field label="Description">
+                  <Textarea
+                    rows={4}
+                    value={editable.description}
+                    onChange={(e) => setEditableField("description", e.target.value)}
+                  />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Condition notes">
+                    <Input
+                      value={editable.conditionNotes}
+                      onChange={(e) => setEditableField("conditionNotes", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Fits">
+                    <Input
+                      value={editable.compatibilitySummary}
+                      onChange={(e) => setEditableField("compatibilitySummary", e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field label="Keywords (comma-separated)">
+                  <Input
+                    value={keywordsString}
+                    onChange={(e) => onKeywordsChange(e.target.value)}
+                    placeholder="VW, Golf, Mk7, headlight"
+                  />
+                  {editable.keywords.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {editable.keywords.map((k) => (
+                        <Badge key={k} variant="secondary">{k}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </Field>
+              </>
+            )}
+
+            {editable && !loading && (
+              <div className="flex flex-wrap items-center gap-2 pt-2">
                 {postedId ? (
                   <p className="text-sm text-green-600">
                     Listing posted!{" "}
                     <a href={`/listings/${postedId}`} className="underline">View listing</a>
                   </p>
                 ) : (
-                  <Button onClick={onPost} disabled={posting}>
-                    {posting ? "Posting…" : "Post listing"}
-                  </Button>
+                  <>
+                    <Button onClick={onPost} disabled={posting}>
+                      {posting ? "Posting…" : "Post listing"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onRegenerate}
+                      disabled={posting}
+                    >
+                      <RotateCw className="h-4 w-4" />
+                      Regenerate
+                    </Button>
+                  </>
                 )}
               </div>
             )}

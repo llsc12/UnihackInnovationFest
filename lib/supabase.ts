@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient as createSSRServer, createBrowserClient as createSSRBrowser } from "@supabase/ssr";
 import type { cookies } from "next/headers";
+import { SUPABASE_AUTH_COOKIE_NAME } from "@/lib/supabase-cookies";
 
 function supabaseUrl() {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL?.trim() || process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (!url) throw new Error("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) must be set.");
   return url;
 }
@@ -18,10 +19,17 @@ export function createServerClient() {
 
 // ── Session-aware server client (respects RLS, reads cookies) ─────────────────
 // Pass the Next.js `cookies()` store from a Server Component or Route Handler.
+// Prefers SUPABASE_URL so that inside Docker the container can reach Kong on
+// the internal network (http://kong:8000), and falls back to NEXT_PUBLIC_URL
+// when running outside Docker.
 export function createSessionServerClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const url = supabaseUrl();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!key) throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.");
   return createSSRServer(url, key, {
+    cookieOptions: {
+      name: SUPABASE_AUTH_COOKIE_NAME,
+    },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (pairs) => {
@@ -40,5 +48,9 @@ export function createBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.");
-  return createSSRBrowser(url, key);
+  return createSSRBrowser(url, key, {
+    cookieOptions: {
+      name: SUPABASE_AUTH_COOKIE_NAME,
+    },
+  });
 }

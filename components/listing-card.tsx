@@ -1,36 +1,39 @@
+// AutoReviver-branded listing card. Used on /listings and /saved.
+// Visual style matches app/autoreviver.css `.browse-card` rules.
+
 import Link from "next/link";
 import type { Listing } from "@/lib/types";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TrustScoreBadge } from "@/components/trust-score-badge";
 import { computeTrustScore } from "@/lib/trust-score";
 import { formatPrice, formatYearRange } from "@/lib/utils";
 
 export function ListingCard({ listing }: { listing: Listing }) {
   const trust = computeTrustScore(listing);
+  const image = listing.input.images?.[0] ?? "/placeholder.svg";
+  const fit = listing.fitsVehicles[0];
+  const fitsLabel = fit ? `Fits ${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : null;
+
   return (
-    <Link href={`/listings/${listing.id}`}>
-      <Card className="h-full transition-shadow hover:shadow-md">
-        <CardHeader>
-          <CardTitle className="line-clamp-2 text-base">{listing.generated.title}</CardTitle>
-          <div className="flex items-center gap-2 pt-2">
-            <Badge variant="outline">{listing.input.partType}</Badge>
-            <Badge variant="secondary">
-              {listing.input.make} {listing.input.model}{" "}
-              {formatYearRange(listing.input.yearFrom, listing.input.yearTo)}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="line-clamp-3 text-sm text-muted-foreground">
-            {listing.generated.description}
-          </p>
-        </CardContent>
-        <CardFooter className="flex items-center justify-between">
-          <span className="text-lg font-semibold">{formatPrice(listing.input.price)}</span>
-          <TrustScoreBadge score={trust.score} band={trust.band} />
-        </CardFooter>
-      </Card>
+    <Link href={`/listings/${listing.id}`} className="browse-card">
+      <div
+        className="browse-card-image"
+        style={{ backgroundImage: `url("${image}")` }}
+        aria-hidden
+      />
+      <div className="browse-card-body">
+        <div className="browse-card-chips">
+          <span className="browse-card-chip part">{listing.input.partType}</span>
+          <span className="browse-card-chip vehicle">
+            {listing.input.make} {listing.input.model}{" "}
+            {formatYearRange(listing.input.yearFrom, listing.input.yearTo)}
+          </span>
+        </div>
+        <div className="browse-card-title">{listing.generated.title}</div>
+        {fitsLabel && <div className="browse-card-fits">{fitsLabel}</div>}
+      </div>
+      <div className="browse-card-footer">
+        <span className="browse-card-price">{formatPrice(listing.input.price)}</span>
+        <span className={`browse-card-trust ${trust.band}`}>Trust {trust.score}</span>
+      </div>
     </Link>
   );
 }

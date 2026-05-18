@@ -1,16 +1,18 @@
-// STREAM 3 — listing detail page. Shows trust score + compatibility checker (Stream 2's UI).
+// STREAM 3 — listing detail page. Shows image gallery, trust score, save button,
+// and the compatibility checker (Stream 2's UI).
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { getListingById } from "@/lib/data";
+import { getListingById, isListingSaved } from "@/lib/data";
 import { createSessionServerClient } from "@/lib/supabase";
 import { computeTrustScore } from "@/lib/trust-score";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrustScoreBadge } from "@/components/trust-score-badge";
+import { SaveButton } from "@/components/save-button";
 import { CompatibilityChecker } from "./compatibility-checker";
 import { formatPrice, formatYearRange } from "@/lib/utils";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -30,10 +32,30 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const supabase = createSessionServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
   const isOwner = user != null && listing.userId === user.id;
+  const initiallySaved = user ? await isListingSaved(user.id, listing.id) : false;
+
+  const images = listing.input.images?.length ? listing.input.images : ["/placeholder.svg"];
+  const [primaryImage, ...thumbs] = images;
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-6">
+        <div className="detail-gallery">
+          <div className="detail-gallery-main" style={{ backgroundImage: `url("${primaryImage}")` }} aria-hidden />
+          {thumbs.length > 0 && (
+            <div className="detail-gallery-thumbs">
+              {thumbs.map((src, i) => (
+                <div
+                  key={i}
+                  className="detail-gallery-thumb"
+                  style={{ backgroundImage: `url("${src}")` }}
+                  aria-hidden
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         <header className="space-y-3">
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-3xl font-bold">{listing.generated.title}</h1>
@@ -69,6 +91,14 @@ export default async function ListingDetailPage({ params }: PageProps) {
       </div>
 
       <aside className="space-y-6">
+        <div className="flex items-center gap-3">
+          <SaveButton
+            listingId={listing.id}
+            initiallySaved={initiallySaved}
+            loggedIn={user != null}
+          />
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">

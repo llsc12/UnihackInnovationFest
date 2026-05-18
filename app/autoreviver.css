@@ -785,3 +785,345 @@ html { scroll-behavior: smooth; }
   .autoreviver-landing .stats-btn,
   .autoreviver-landing .like-btn { width: 100%; }
 }
+
+/* ============================================================ */
+/* Header auth slot (Log-in / Sign-up or email + Sign-out)     */
+/* ============================================================ */
+
+.autoreviver-landing .nav-auth {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.autoreviver-landing .nav-user-email {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autoreviver-landing .nav-btn-outline {
+  background: transparent;
+  color: white;
+  padding: 15px 26px;
+  border-radius: 8px;
+  font-weight: 800;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  transition: 0.2s ease;
+}
+
+.autoreviver-landing .nav-btn-outline:hover {
+  border-color: var(--ar-red);
+  color: var(--ar-red);
+  transform: translateY(-2px);
+}
+
+/* Sign out button (rendered from LogoutButton client component) — match the
+   visual weight of nav-btn-outline so the right slot stays balanced. */
+.autoreviver-landing .nav-auth button {
+  background: transparent;
+  color: white;
+  padding: 13px 22px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  transition: 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.autoreviver-landing .nav-auth button:hover {
+  border-color: var(--ar-red);
+  color: var(--ar-red);
+}
+
+/* ============================================================ */
+/* Browse page                                                  */
+/* ============================================================ */
+
+.autoreviver-landing .browse-page {
+  padding: 30px 0 60px;
+}
+
+.autoreviver-landing .browse-hero {
+  margin-bottom: 30px;
+}
+
+.autoreviver-landing .browse-hero h1 {
+  font-size: clamp(2.4rem, 4.5vw, 4.5rem);
+  letter-spacing: -2px;
+  line-height: 1;
+  margin: 18px 0 12px;
+}
+
+.autoreviver-landing .browse-hero .browse-count {
+  color: #4d535b;
+  font-size: 1.05rem;
+}
+
+.autoreviver-landing .browse-search {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 36px;
+  background: white;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--ar-border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+}
+
+.autoreviver-landing .browse-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 14px 18px;
+  font-size: 1rem;
+  color: var(--ar-black);
+  outline: none;
+}
+
+.autoreviver-landing .browse-search input::placeholder {
+  color: #9aa0a8;
+}
+
+.autoreviver-landing .browse-search button {
+  background: var(--ar-red);
+  color: white;
+  border: 0;
+  padding: 14px 32px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.autoreviver-landing .browse-search button:hover {
+  background: var(--ar-dark-red);
+  transform: translateY(-2px);
+}
+
+.autoreviver-landing .browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 22px;
+}
+
+.autoreviver-landing .browse-empty {
+  padding: 48px 0;
+  text-align: center;
+  color: #4d535b;
+  font-size: 1.05rem;
+}
+
+.autoreviver-landing .browse-card {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid var(--ar-border);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.06);
+  transition: 0.2s ease;
+  color: var(--ar-black);
+}
+
+.autoreviver-landing .browse-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.12);
+  border-color: rgba(227, 6, 19, 0.25);
+}
+
+.autoreviver-landing .browse-card-image {
+  width: 100%;
+  height: 180px;
+  background-color: #efefef;
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(0.4);
+}
+
+.autoreviver-landing .browse-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 22px 14px;
+  flex: 1;
+}
+
+.autoreviver-landing .browse-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.autoreviver-landing .browse-card-chip {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.autoreviver-landing .browse-card-chip.part {
+  background: rgba(227, 6, 19, 0.08);
+  border: 1px solid rgba(227, 6, 19, 0.18);
+  color: var(--ar-red);
+}
+
+.autoreviver-landing .browse-card-chip.vehicle {
+  background: #f1f3f6;
+  border: 1px solid #e0e3e8;
+  color: #2a2e34;
+}
+
+.autoreviver-landing .browse-card-title {
+  font-size: 1.05rem;
+  line-height: 1.3;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.autoreviver-landing .browse-card-fits {
+  color: #5a6068;
+  font-size: 0.88rem;
+}
+
+.autoreviver-landing .browse-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px 20px;
+  border-top: 1px solid #f1f1f1;
+  margin-top: 4px;
+}
+
+.autoreviver-landing .browse-card-price {
+  color: var(--ar-red);
+  font-weight: 900;
+  font-size: 1.35rem;
+}
+
+.autoreviver-landing .browse-card-trust {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.autoreviver-landing .browse-card-trust.high {
+  background: rgba(10, 152, 24, 0.1);
+  color: var(--ar-green);
+  border: 1px solid rgba(10, 152, 24, 0.2);
+}
+
+.autoreviver-landing .browse-card-trust.medium {
+  background: rgba(230, 154, 0, 0.1);
+  color: #b07000;
+  border: 1px solid rgba(230, 154, 0, 0.25);
+}
+
+.autoreviver-landing .browse-card-trust.low {
+  background: rgba(227, 6, 19, 0.1);
+  color: var(--ar-red);
+  border: 1px solid rgba(227, 6, 19, 0.25);
+}
+
+/* ============================================================ */
+/* Listing detail image gallery                                 */
+/* ============================================================ */
+
+.autoreviver-landing .detail-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.autoreviver-landing .detail-gallery-main {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background-color: #efefef;
+  background-size: cover;
+  background-position: center;
+  border-radius: 16px;
+  border: 1px solid var(--ar-border);
+}
+
+.autoreviver-landing .detail-gallery-thumbs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.autoreviver-landing .detail-gallery-thumb {
+  width: 86px;
+  height: 64px;
+  background-color: #efefef;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  border: 1px solid var(--ar-border);
+}
+
+/* ============================================================ */
+/* Save / like button                                           */
+/* ============================================================ */
+
+.autoreviver-landing .save-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.92rem;
+  cursor: pointer;
+  border: 1.5px solid var(--ar-border);
+  background: white;
+  color: var(--ar-black);
+  transition: 0.2s ease;
+}
+
+.autoreviver-landing .save-button:hover {
+  border-color: var(--ar-red);
+  color: var(--ar-red);
+  transform: translateY(-2px);
+}
+
+.autoreviver-landing .save-button.saved {
+  background: var(--ar-red);
+  color: white;
+  border-color: var(--ar-red);
+}
+
+.autoreviver-landing .save-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.autoreviver-landing .save-button:disabled:hover {
+  border-color: var(--ar-border);
+  color: var(--ar-black);
+}
+
+/* Responsive overrides for the new components */
+@media (max-width: 800px) {
+  .autoreviver-landing .nav-auth { width: 100%; justify-content: center; }
+  .autoreviver-landing .browse-search { flex-direction: column; }
+  .autoreviver-landing .browse-search button { width: 100%; }
+  .autoreviver-landing .browse-grid { grid-template-columns: 1fr; }
+}

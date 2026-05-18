@@ -1,8 +1,8 @@
 "use client";
 
-// Tinder-for-car-parts demo, backed by real listings from lib/data.ts and the
-// real trust score algorithm. Each card maps a Listing into the display shape
-// the visual design needs.
+// Tinder-for-car-parts demo, backed by real listings + the trust score algorithm.
+// The Like button hits /api/saves/:id so likes persist to the user's saved list
+// (and the /saved page reflects them). When logged out, Like is disabled with a hint.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -10,11 +10,18 @@ import { computeTrustScore } from "@/lib/trust-score";
 import { formatPrice, formatYearRange } from "@/lib/utils";
 import type { Listing } from "@/lib/types";
 
-export function PartSwiper({ listings }: { listings: Listing[] }) {
+interface Props {
+  listings: Listing[];
+  initialSavedIds: string[];
+  loggedIn: boolean;
+}
+
+export function PartSwiper({ listings, initialSavedIds, loggedIn }: Props) {
   const [index, setIndex] = useState(0);
-  const [saved, setSaved] = useState<string[]>([]);
+  const [saved, setSaved] = useState<string[]>(initialSavedIds);
   const [compared, setCompared] = useState<string[]>([]);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [pendingLike, setPendingLike] = useState(false);
 
   if (listings.length === 0) {
     return (
@@ -34,8 +41,22 @@ export function PartSwiper({ listings }: { listings: Listing[] }) {
     setIndex((i) => (i + delta + listings.length) % listings.length);
   }
 
-  function toggleLike() {
-    setSaved((s) => (s.includes(listing.id) ? s.filter((id) => id !== listing.id) : [...s, listing.id]));
+  async function toggleLike() {
+    if (!loggedIn || pendingLike) return;
+    const next = !isLiked;
+    setSaved((s) => (next ? [...s, listing.id] : s.filter((id) => id !== listing.id)));
+    setPendingLike(true);
+    try {
+      const res = await fetch(`/api/saves/${encodeURIComponent(listing.id)}`, {
+        method: next ? "POST" : "DELETE",
+      });
+      if (!res.ok) throw new Error(`save toggle failed: ${res.status}`);
+    } catch (err) {
+      console.error(err);
+      setSaved((s) => (next ? s.filter((id) => id !== listing.id) : [...s, listing.id]));
+    } finally {
+      setPendingLike(false);
+    }
   }
 
   function toggleCompare() {
@@ -45,6 +66,8 @@ export function PartSwiper({ listings }: { listings: Listing[] }) {
   const savedNames = saved
     .map((id) => listings.find((l) => l.id === id)?.generated.title)
     .filter((n): n is string => !!n);
+
+  const likeLabel = isLiked ? "Liked ♥" : loggedIn ? "Like Part" : "Log in to like";
 
   return (
     <>
@@ -121,8 +144,10 @@ export function PartSwiper({ listings }: { listings: Listing[] }) {
                 type="button"
                 className={`like-btn ${isLiked ? "liked" : ""}`}
                 onClick={toggleLike}
+                disabled={!loggedIn || pendingLike}
+                title={loggedIn ? undefined : "Log in to like"}
               >
-                {isLiked ? "Liked ♥" : "Like Part"}
+                {likeLabel}
               </button>
             </div>
           </div>
@@ -156,7 +181,13 @@ export function PartSwiper({ listings }: { listings: Listing[] }) {
 
       <section className="saved-bar">
         <h2>Saved parts</h2>
-        <p>{savedNames.length === 0 ? "No parts liked yet." : savedNames.join(", ")}</p>
+        <p>
+          {!loggedIn
+            ? "Log in to save parts."
+            : savedNames.length === 0
+            ? "No parts liked yet."
+            : savedNames.join(", ")}
+        </p>
       </section>
     </>
   );

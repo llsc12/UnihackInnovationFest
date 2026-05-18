@@ -140,6 +140,71 @@ export async function updateListing(
   if (error) throw new Error(`updateListing: ${error.message}`);
 }
 
+// ── Saved listings ───────────────────────────────────────────────────────────
+// All queries scope by user_id explicitly. RLS on the table denies anon/auth
+// reads outright; service_role (the createServerClient below) bypasses RLS.
+// The /api/saves/[id] route is responsible for verifying the user before
+// calling any of these.
+
+export async function saveListing(userId: string, listingId: string): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("saved_listings")
+    .upsert(
+      { user_id: userId, listing_id: listingId },
+      { onConflict: "user_id,listing_id", ignoreDuplicates: true },
+    );
+  if (error) throw new Error(`saveListing: ${error.message}`);
+}
+
+export async function unsaveListing(userId: string, listingId: string): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("saved_listings")
+    .delete()
+    .eq("user_id", userId)
+    .eq("listing_id", listingId);
+  if (error) throw new Error(`unsaveListing: ${error.message}`);
+}
+
+export async function isListingSaved(userId: string, listingId: string): Promise<boolean> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("saved_listings")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("listing_id", listingId)
+    .maybeSingle();
+  if (error) throw new Error(`isListingSaved: ${error.message}`);
+  return data !== null;
+}
+
+export async function getSavedListingIds(userId: string): Promise<string[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("saved_listings")
+    .select("listing_id")
+    .eq("user_id", userId);
+  if (error) throw new Error(`getSavedListingIds: ${error.message}`);
+  return (data ?? []).map((r) => r.listing_id);
+}
+
+export async function getSavedListings(userId: string): Promise<Listing[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("saved_listings")
+    .select(
+      `created_at,
+       listing:listings!inner(*, seller:sellers(*), fits_vehicles:listing_fits_vehicles(make, model, year_from, year_to))`,
+    )
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`getSavedListings: ${error.message}`);
+  // eslint-disable-next-line
+  return (data ?? []).map((row: any) => rowToListing(row.listing));
+}
+
 // eslint-disable-next-line
 function rowToListing(row: any): Listing {
   return {

@@ -4,9 +4,13 @@
 # Starts the Next.js app + a full self-hosted Supabase stack.
 #
 # Quick start:
-#   cp .env.example .env.local
+#   cp .env.example .env          ← Docker Compose reads .env for variable substitution
 #   # fill in POSTGRES_PASSWORD, JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY
 #   docker compose up
+#
+# For local dev without Docker (Supabase Cloud):
+#   cp .env.example .env.local    ← Next.js reads .env.local
+#   npm run dev
 #
 # URLs:
 #   App            http://localhost:3000
@@ -28,7 +32,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_SUPABASE_URL: http://localhost:8000
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:8000       # browser → host Kong port
+      SUPABASE_URL: http://kong:8000                        # server-side → internal Docker network
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -50,10 +55,10 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
-      - ./supabase/seed.sql:/docker-entrypoint-initdb.d/999_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -h localhost"]
       interval: 5s
@@ -122,25 +127,15 @@ services:
     ports:
       - "8000:8000"
       - "8443:8443"
-    # envsubst substitutes $ANON_KEY / $SERVICE_KEY into kong.yml at startup
-    entrypoint: >
-      bash -c '
-        export ANON_KEY="$$ANON_KEY"
-        export SERVICE_KEY="$$SERVICE_KEY"
-        envsubst < /home/kong/kong.yml.tpl > /tmp/kong.yml
-        /docker-entrypoint.sh kong docker-start
-      '
     environment:
       KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /tmp/kong.yml
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
       KONG_PLUGINS: request-transformer,cors,key-auth,acl
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-      ANON_KEY: ${ANON_KEY}
-      SERVICE_KEY: ${SERVICE_ROLE_KEY}
     volumes:
-      - ./supabase/kong.yml:/home/kong/kong.yml.tpl:ro
+      - ./supabase/kong.yml:/home/kong/kong.yml:ro
     depends_on:
       db:
         condition: service_healthy

@@ -1,15 +1,15 @@
 _format_version: "1.1"
 
 # Kong declarative config for local Supabase.
-# $ANON_KEY and $SERVICE_KEY are substituted at container startup via envsubst.
+# Keys below are the standard Supabase self-hosted dev defaults — do not use in production.
 
 consumers:
   - username: anon
     keyauth_credentials:
-      - key: $ANON_KEY
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
   - username: service_role
     keyauth_credentials:
-      - key: $SERVICE_KEY
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 acls:
   - consumer: anon

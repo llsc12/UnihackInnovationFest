@@ -100,9 +100,9 @@ CREATE POLICY "sellers_insert"      ON sellers               FOR INSERT WITH CHE
 CREATE POLICY "fits_insert"         ON listing_fits_vehicles FOR INSERT WITH CHECK (true);
 
 -- ── Grants ────────────────────────────────────────────────────────────────────
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON sellers, listings, listing_fits_vehicles, vehicles, compatibility_rules
-  TO anon, authenticated;
-GRANT INSERT, UPDATE ON listings, sellers, listing_fits_vehicles TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE listing_fits_vehicles_id_seq TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE compatibility_rules_id_seq   TO authenticated;
+  TO anon, authenticated, service_role;
+GRANT INSERT, UPDATE ON listings, sellers, listing_fits_vehicles TO authenticated, service_role;
+GRANT USAGE, SELECT ON SEQUENCE listing_fits_vehicles_id_seq TO authenticated, service_role;
+GRANT USAGE, SELECT ON SEQUENCE compatibility_rules_id_seq   TO authenticated, service_role;

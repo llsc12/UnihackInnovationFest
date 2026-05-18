@@ -1,4 +1,5 @@
 // STREAM 4 owns this page (home + entry to search/discovery).
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { ListingCard } from "@/components/listing-card";

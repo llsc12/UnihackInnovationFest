@@ -42,3 +42,6 @@ Thumbs.db
 
 # typescript
 *.tsbuildinfo
+
+# user-uploaded images (local dev only)
+public/uploads/

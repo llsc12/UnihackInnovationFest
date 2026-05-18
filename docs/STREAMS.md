@@ -6,7 +6,7 @@ route, lib module, and any data they need. Shared types live in
 
 | # | Stream | Owner | Pages | API | Library | Data |
 |---|--------|-------|-------|-----|---------|------|
-| 1 | Listing Generator | _TBD_ | [`app/sell/`](../app/sell) | [`app/api/generate-listing/`](../app/api/generate-listing) | [`lib/listing-generator.ts`](../lib/listing-generator.ts) | — |
+| 1 | Listing Generator | Lee | [`app/sell/`](../app/sell) | [`app/api/generate-listing/`](../app/api/generate-listing) | [`lib/listing-generator.ts`](../lib/listing-generator.ts) | — |
 | 2 | Compatibility Checker | _TBD_ | [`app/listings/[id]/compatibility-checker.tsx`](../app/listings/[id]/compatibility-checker.tsx) | [`app/api/compatibility/`](../app/api/compatibility) | [`lib/compatibility.ts`](../lib/compatibility.ts) | [`data/compatibility-rules.json`](../data/compatibility-rules.json) |
 | 3 | Trust Score + Detail Page | _TBD_ | [`app/listings/[id]/page.tsx`](../app/listings/[id]/page.tsx) | — | [`lib/trust-score.ts`](../lib/trust-score.ts) | — |
 | 4 | Search / Discovery | _TBD_ | [`app/page.tsx`](../app/page.tsx), [`app/listings/page.tsx`](../app/listings/page.tsx) | [`app/api/listings/`](../app/api/listings) | [`lib/search.ts`](../lib/search.ts) | — |

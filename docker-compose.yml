@@ -168,6 +168,31 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # ── Supabase Storage API ─────────────────────────────────────────────────────
+  storage:
+    image: supabase/storage-api:v1.11.13
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+    volumes:
+      - storage_data:/var/lib/storage
+    restart: unless-stopped
+
   # ── Supabase Studio ───────────────────────────────────────────────────────────
   studio:
     image: supabase/studio:20240422-5cf8f30
@@ -189,3 +214,4 @@ services:
 
 volumes:
   db_data:
+  storage_data:

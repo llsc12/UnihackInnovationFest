@@ -49,6 +49,17 @@ services:
             - anon
             - admin
 
+  # ── Storage ───────────────────────────────────────────────────────────────
+  - name: storage-v1-all
+    url: http://storage:5000/
+    routes:
+      - name: storage-v1-all
+        strip_path: true
+        paths:
+          - /storage/v1/
+    plugins:
+      - name: cors
+
   # ── pg-meta ───────────────────────────────────────────────────────────────
   - name: meta-v1-all
     url: http://meta:8080/

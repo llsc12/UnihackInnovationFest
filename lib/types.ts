@@ -2,6 +2,8 @@
 // If you change a type here, ping the channel — it likely affects another stream.
 
 export type Condition = "new" | "like-new" | "good" | "fair" | "for-parts";
+export type PartOrigin = "oem" | "aftermarket" | "unknown";
+export type PrivacyMode = "public" | "private";
 
 export interface Vehicle {
   make: string;
@@ -23,6 +25,11 @@ export interface Seller {
   rating?: number;
   reviewCount?: number;
   location?: string;
+  // Profile fields — present when the seller has a profile (may be absent for seed data)
+  username?: string;
+  fullName?: string | null;  // null when privacyMode === 'private'
+  memberSince?: string;      // ISO date string
+  profileUrl?: string;       // /profile/[username]
 }
 
 // Input from the seller form, before AI/template generation runs.
@@ -38,6 +45,9 @@ export interface ListingInput {
   price?: number;
   images?: string[];
   hasReturnPolicy?: boolean;
+  returnPolicyDetails?: string;
+  postageInfo?: string;
+  partOrigin?: PartOrigin;
 }
 
 // Output from the listing generator (lib/listing-generator.ts).
@@ -79,8 +89,9 @@ export interface TrustScoreResult {
 export interface TrustSignal {
   key: string;
   label: string;
-  weight: number; // contribution to the score
+  weight: number; // max contribution to the score
   passed: boolean;
+  partial?: boolean; // true when graduated score is between 0 and weight
 }
 
 // Search query + result (lib/search.ts).
@@ -99,4 +110,25 @@ export interface SearchQuery {
 export interface SearchResult {
   listing: Listing;
   score: number; // relevance
+}
+
+// ── User profile types ────────────────────────────────────────────────────────
+
+// Safe to send to any client — no DOB, no email.
+export interface PublicProfile {
+  id: string;           // UUID, needed to look up listings
+  username: string;
+  fullName: string | null;  // null when privacyMode === 'private'
+  memberSince: string;      // ISO date string
+}
+
+// Only ever returned to the profile owner.
+export interface OwnProfile {
+  id: string;
+  username: string;
+  fullName: string;
+  dateOfBirth: string;  // ISO date — never send to other users
+  privacyMode: PrivacyMode;
+  memberSince: string;
+  email: string;        // from auth.users — never send to other users
 }

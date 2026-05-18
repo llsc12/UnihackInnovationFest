@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { GeneratedListing, ListingInput } from "@/lib/types";
+import type { GeneratedListing, ListingInput, PartOrigin } from "@/lib/types";
 import {
   finalizeListing,
   parseListingSections,
@@ -254,17 +254,47 @@ export function SellForm() {
                 />
               </Field>
             </div>
-            <div className="sm:col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="returnPolicy"
-                checked={input.hasReturnPolicy ?? false}
-                onChange={(e) => set("hasReturnPolicy", e.target.checked)}
-                className="h-4 w-4 rounded border accent-primary"
-              />
-              <label htmlFor="returnPolicy" className="text-sm">
-                I offer a return policy on this part
-              </label>
+            <Field label="Part origin">
+              <select
+                value={input.partOrigin ?? "unknown"}
+                onChange={(e) => set("partOrigin", e.target.value as PartOrigin)}
+                className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              >
+                <option value="unknown">Unknown</option>
+                <option value="oem">OEM (Original Equipment Manufacturer)</option>
+                <option value="aftermarket">Aftermarket</option>
+              </select>
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Postage info">
+                <Input
+                  value={input.postageInfo ?? ""}
+                  onChange={(e) => set("postageInfo", e.target.value)}
+                  placeholder="e.g. Royal Mail Tracked 48, £4.95 — or collection only"
+                />
+              </Field>
+            </div>
+            <div className="sm:col-span-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="returnPolicy"
+                  checked={input.hasReturnPolicy ?? false}
+                  onChange={(e) => set("hasReturnPolicy", e.target.checked)}
+                  className="h-4 w-4 rounded border accent-primary"
+                />
+                <label htmlFor="returnPolicy" className="text-sm">
+                  I offer a return policy on this part
+                </label>
+              </div>
+              {input.hasReturnPolicy && (
+                <Textarea
+                  rows={2}
+                  value={input.returnPolicyDetails ?? ""}
+                  onChange={(e) => set("returnPolicyDetails", e.target.value)}
+                  placeholder="e.g. 14-day returns accepted, buyer pays return postage."
+                />
+              )}
             </div>
             <div className="sm:col-span-2 space-y-3">
               <Label>Photos (up to 4)</Label>

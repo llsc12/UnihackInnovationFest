@@ -1,17 +1,23 @@
 // POST /api/upload
 // Body: multipart/form-data with field "images" (1-4 files)
 // Response: { urls: string[] }
+// Images are stored in Supabase Storage under listing-images/{userId}/{uuid}.{ext}
 
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { randomUUID } from "crypto";
+import { cookies } from "next/headers";
+import { createSessionServerClient, createServerClient } from "@/lib/supabase";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_SIZE = 10 * 1024 * 1024;
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
 
 export async function POST(req: Request) {
+  // Require authentication
+  const cookieStore = await cookies();
+  const sessionClient = createSessionServerClient(cookieStore);
+  const { data: { user } } = await sessionClient.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -29,26 +35,38 @@ export async function POST(req: Request) {
     if (!ALLOWED_TYPES.has(file.type)) {
       return NextResponse.json(
         { error: `"${file.name}" must be jpg, png, or webp` },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
         { error: `"${file.name}" exceeds the 10 MB limit` },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
-
+  const supabase = createServerClient();
   const urls: string[] = [];
+
   for (const file of files) {
     const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-    const filename = `${randomUUID()}.${ext}`;
+    const path = `${user.id}/${randomUUID()}.${ext}`;
     const bytes = await file.arrayBuffer();
-    await writeFile(join(UPLOAD_DIR, filename), Buffer.from(bytes));
-    urls.push(`/uploads/${filename}`);
+
+    const { error } = await supabase.storage
+      .from("listing-images")
+      .upload(path, Buffer.from(bytes), { contentType: file.type, upsert: false });
+
+    if (error) {
+      return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("listing-images")
+      .getPublicUrl(path);
+
+    urls.push(publicUrl);
   }
 
   return NextResponse.json({ urls });

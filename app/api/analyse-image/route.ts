@@ -1,12 +1,10 @@
 // POST /api/analyse-image
-// Body: { url: string }  — a /uploads/... URL returned by /api/upload
+// Body: { url: string }  — a Supabase Storage URL returned by /api/upload
 // Response: { partType, condition, partNumber, notes }
-// Reads the file from disk and sends it to Claude Vision to extract part metadata.
+// Fetches the image from its public URL and sends it to Claude Vision.
 
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { readFile } from "fs/promises";
-import { join } from "path";
 
 type MediaType = "image/jpeg" | "image/png" | "image/webp";
 
@@ -17,27 +15,37 @@ const EXT_TO_MIME: Record<string, MediaType> = {
   webp: "image/webp",
 };
 
+function isAllowedImageUrl(url: string): boolean {
+  // Accept Supabase Storage public URLs and legacy local /uploads/ paths
+  const supabaseBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseBase && url.startsWith(supabaseBase)) return true;
+  if (url.startsWith("/uploads/")) return true;
+  return false;
+}
+
 export async function POST(req: Request) {
   const { url } = (await req.json()) as { url?: string };
 
-  if (!url?.startsWith("/uploads/")) {
+  if (!url || !isAllowedImageUrl(url)) {
     return NextResponse.json({ error: "Invalid image URL" }, { status: 400 });
   }
 
-  const filename = url.replace("/uploads/", "");
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  const mediaType = EXT_TO_MIME[ext];
+  // Resolve relative /uploads/ paths to absolute for fetch
+  const absoluteUrl = url.startsWith("/")
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}${url}`
+    : url;
 
-  if (!mediaType) {
-    return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
-  }
+  const ext = absoluteUrl.split(".").pop()?.toLowerCase() ?? "";
+  const mediaType: MediaType = EXT_TO_MIME[ext] ?? "image/jpeg";
 
   let imageData: string;
   try {
-    const buffer = await readFile(join(process.cwd(), "public", "uploads", filename));
+    const res = await fetch(absoluteUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
     imageData = buffer.toString("base64");
-  } catch {
-    return NextResponse.json({ error: "Image not found" }, { status: 404 });
+  } catch (err) {
+    return NextResponse.json({ error: `Could not fetch image: ${err}` }, { status: 404 });
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {

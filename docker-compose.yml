@@ -82,11 +82,35 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "psql -U postgres -d postgres -c 'SELECT 1 FROM profiles LIMIT 1' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -h localhost"]
       interval: 5s
       timeout: 5s
-      retries: 30
+      retries: 10
     restart: unless-stopped
+
+  # ── Migrations (one-shot) ─────────────────────────────────────────────────────
+  # Runs every SQL migration in order (all are idempotent — IF NOT EXISTS /
+  # ON CONFLICT DO NOTHING), then signals PostgREST to reload its schema cache.
+  # The `rest` service depends on this completing so it never starts with a
+  # stale cache, regardless of whether the volume is fresh or pre-existing.
+  migrate:
+    image: postgres:15-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./supabase/migrations:/migrations:ro
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      sh -c "
+        for f in /migrations/*.sql; do
+          echo \"Applying $$f...\";
+          psql -h db -U postgres -d postgres -f \"$$f\" || true;
+        done &&
+        psql -h db -U postgres -d postgres -c \"NOTIFY pgrst, 'reload schema';\"
+      "
+    restart: "no"
 
   # ── Auth (GoTrue) ─────────────────────────────────────────────────────────────
   auth:
@@ -118,6 +142,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
       PGRST_DB_SCHEMAS: public

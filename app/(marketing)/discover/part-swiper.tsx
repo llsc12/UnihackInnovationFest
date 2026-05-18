@@ -1,131 +1,50 @@
 "use client";
 
-// Tinder-for-car-parts demo. Hardcoded swipeParts for now.
-// TODO(stream-4): wire to lib/data.ts so the deck reflects real listings.
+// Tinder-for-car-parts demo, backed by real listings from lib/data.ts and the
+// real trust score algorithm. Each card maps a Listing into the display shape
+// the visual design needs.
 
 import { useState } from "react";
+import Link from "next/link";
+import { computeTrustScore } from "@/lib/trust-score";
+import { formatPrice, formatYearRange } from "@/lib/utils";
+import type { Listing } from "@/lib/types";
 
-interface SwipePart {
-  name: string;
-  tag: string;
-  sellerAvatar: string;
-  sellerName: string;
-  sellerRating: string;
-  image: string;
-  compatibility: string;
-  trustScore: string;
-  condition: string;
-  delivery: string;
-  price: string;
-  oem: string;
-  fitment: string;
-  placement: string;
-  verification: string;
-  returns: string;
-  risk: string;
-}
-
-const PARTS: SwipePart[] = [
-  {
-    name: "LED Headlight — Left Side",
-    tag: "Verified Match",
-    sellerAvatar: "RP",
-    sellerName: "ReviveParts UK",
-    sellerRating: "★★★★★ 4.8 seller rating",
-    image: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=1100&q=80",
-    compatibility: "96%",
-    trustScore: "87/100",
-    condition: "Like New",
-    delivery: "2–3 days",
-    price: "£84.99",
-    oem: "26060-4BA0A",
-    fitment: "Nissan Rogue 2017–2020",
-    placement: "Front Left",
-    verification: "HMRC Checked",
-    returns: "30 days",
-    risk: "Low",
-  },
-  {
-    name: "BMW 3 Series Alloy Wheel",
-    tag: "High Trust Seller",
-    sellerAvatar: "MW",
-    sellerName: "Midlands Wheels",
-    sellerRating: "★★★★★ 4.5 seller rating",
-    image: "https://images.unsplash.com/photo-1601362840469-51e4d8d58785?auto=format&fit=crop&w=1100&q=80",
-    compatibility: "89%",
-    trustScore: "82/100",
-    condition: "Good",
-    delivery: "3–5 days",
-    price: "£119.00",
-    oem: "36116856052",
-    fitment: "BMW 3 Series 2016–2019",
-    placement: "Front / Rear",
-    verification: "Business Verified",
-    returns: "14 days",
-    risk: "Low",
-  },
-  {
-    name: "Ford Fiesta Wing Mirror",
-    tag: "AI Fitment Checked",
-    sellerAvatar: "FS",
-    sellerName: "FastSpare Autos",
-    sellerRating: "★★★★★ 4.3 seller rating",
-    image: "https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1100&q=80",
-    compatibility: "91%",
-    trustScore: "79/100",
-    condition: "Used",
-    delivery: "Next day",
-    price: "£42.50",
-    oem: "C1BB17683AJ",
-    fitment: "Ford Fiesta 2013–2017",
-    placement: "Driver Side",
-    verification: "Seller ID Checked",
-    returns: "14 days",
-    risk: "Medium",
-  },
-  {
-    name: "Toyota Corolla Rear Tail Light",
-    tag: "Eco Reused Part",
-    sellerAvatar: "GC",
-    sellerName: "GreenCycle Parts",
-    sellerRating: "★★★★★ 4.9 seller rating",
-    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1100&q=80",
-    compatibility: "94%",
-    trustScore: "91/100",
-    condition: "Excellent",
-    delivery: "2–4 days",
-    price: "£68.00",
-    oem: "81551-02B20",
-    fitment: "Toyota Corolla 2019–2022",
-    placement: "Rear Left",
-    verification: "HMRC Checked",
-    returns: "30 days",
-    risk: "Very Low",
-  },
-];
-
-export function PartSwiper() {
+export function PartSwiper({ listings }: { listings: Listing[] }) {
   const [index, setIndex] = useState(0);
   const [saved, setSaved] = useState<string[]>([]);
   const [compared, setCompared] = useState<string[]>([]);
   const [statsOpen, setStatsOpen] = useState(false);
 
-  const part = PARTS[index];
-  const isLiked = saved.includes(part.name);
-  const isCompared = compared.includes(part.name);
+  if (listings.length === 0) {
+    return (
+      <section className="swipe-stage" style={{ display: "block", textAlign: "center", padding: "60px 0" }}>
+        <p>No listings yet. <Link href="/sell" style={{ color: "var(--ar-red)", fontWeight: 800 }}>Be the first to list a part →</Link></p>
+      </section>
+    );
+  }
+
+  const listing = listings[index];
+  const part = toDisplay(listing);
+  const isLiked = saved.includes(listing.id);
+  const isCompared = compared.includes(listing.id);
 
   function go(delta: number) {
     setStatsOpen(false);
-    setIndex((i) => (i + delta + PARTS.length) % PARTS.length);
+    setIndex((i) => (i + delta + listings.length) % listings.length);
   }
 
   function toggleLike() {
-    setSaved((s) => (s.includes(part.name) ? s.filter((n) => n !== part.name) : [...s, part.name]));
+    setSaved((s) => (s.includes(listing.id) ? s.filter((id) => id !== listing.id) : [...s, listing.id]));
   }
 
   function toggleCompare() {
-    setCompared((c) => (c.includes(part.name) ? c.filter((n) => n !== part.name) : [...c, part.name]));
+    setCompared((c) => (c.includes(listing.id) ? c.filter((id) => id !== listing.id) : [...c, listing.id]));
   }
+
+  const savedNames = saved
+    .map((id) => listings.find((l) => l.id === id)?.generated.title)
+    .filter((n): n is string => !!n);
 
   return (
     <>
@@ -167,10 +86,10 @@ export function PartSwiper() {
 
             <aside className="part-stats">
               <h3>Stats</h3>
-              <div className="stat-row"><span>Compatibility</span><strong>{part.compatibility}</strong></div>
+              <div className="stat-row"><span>Fits</span><strong>{part.fitsLabel}</strong></div>
               <div className="stat-row"><span>Trust Score</span><strong>{part.trustScore}</strong></div>
               <div className="stat-row"><span>Condition</span><strong>{part.condition}</strong></div>
-              <div className="stat-row"><span>Delivery</span><strong>{part.delivery}</strong></div>
+              <div className="stat-row"><span>Location</span><strong>{part.location}</strong></div>
             </aside>
           </div>
 
@@ -188,12 +107,15 @@ export function PartSwiper() {
               >
                 {isCompared ? "Added to Compare ✓" : "Compare"}
               </button>
+              <Link className="stats-btn" href={`/listings/${listing.id}`}>
+                View full listing
+              </Link>
               <button
                 type="button"
                 className="stats-btn"
                 onClick={() => setStatsOpen(true)}
               >
-                Check Full Stat List
+                Full stats
               </button>
               <button
                 type="button"
@@ -224,18 +146,90 @@ export function PartSwiper() {
 
         <div className="stats-grid">
           <div><span>OEM Part Number</span><strong>{part.oem}</strong></div>
-          <div><span>Vehicle Fitment</span><strong>{part.fitment}</strong></div>
-          <div><span>Placement</span><strong>{part.placement}</strong></div>
+          <div><span>Vehicle Fitment</span><strong>{part.fitsLabel}</strong></div>
+          <div><span>Part Type</span><strong>{part.partType}</strong></div>
           <div><span>Seller Verification</span><strong>{part.verification}</strong></div>
           <div><span>Return Policy</span><strong>{part.returns}</strong></div>
-          <div><span>AI Risk Level</span><strong>{part.risk}</strong></div>
+          <div><span>Trust Band</span><strong>{part.risk}</strong></div>
         </div>
       </section>
 
       <section className="saved-bar">
         <h2>Saved parts</h2>
-        <p>{saved.length === 0 ? "No parts liked yet." : saved.join(", ")}</p>
+        <p>{savedNames.length === 0 ? "No parts liked yet." : savedNames.join(", ")}</p>
       </section>
     </>
   );
+}
+
+interface DisplayPart {
+  tag: string;
+  name: string;
+  sellerAvatar: string;
+  sellerName: string;
+  sellerRating: string;
+  image: string;
+  fitsLabel: string;
+  trustScore: string;
+  condition: string;
+  location: string;
+  price: string;
+  oem: string;
+  partType: string;
+  verification: string;
+  returns: string;
+  risk: string;
+}
+
+function toDisplay(listing: Listing): DisplayPart {
+  const trust = computeTrustScore(listing);
+  const fit = listing.fitsVehicles[0];
+  const fitsLabel = fit ? `${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : "—";
+
+  return {
+    tag:
+      trust.band === "high"
+        ? listing.seller.verified ? "Verified Match" : "High Trust Seller"
+        : trust.band === "medium"
+        ? "Check Details"
+        : "Caution Advised",
+    name: listing.generated.title,
+    sellerAvatar: initials(listing.seller.name),
+    sellerName: listing.seller.name,
+    sellerRating:
+      listing.seller.rating != null
+        ? `★★★★★ ${listing.seller.rating} (${listing.seller.reviewCount ?? 0} reviews)`
+        : "New seller",
+    image: listing.input.images?.[0] ?? "/placeholder.svg",
+    fitsLabel,
+    trustScore: `${trust.score}/100`,
+    condition: prettyCondition(listing.input.condition),
+    location: listing.seller.location ?? "—",
+    price: listing.input.price != null ? formatPrice(listing.input.price) : "POA",
+    oem: listing.input.partNumber ?? "Not provided",
+    partType: listing.input.partType,
+    verification: listing.seller.verified ? "Verified" : "Unverified",
+    returns: listing.input.hasReturnPolicy ? "Available" : "Not offered",
+    risk: trust.band === "high" ? "High trust" : trust.band === "medium" ? "Medium trust" : "Low trust",
+  };
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function prettyCondition(c: Listing["input"]["condition"]): string {
+  switch (c) {
+    case "new": return "New";
+    case "like-new": return "Like new";
+    case "good": return "Good";
+    case "fair": return "Fair";
+    case "for-parts": return "For parts";
+  }
 }

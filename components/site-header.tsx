@@ -11,12 +11,11 @@ export function SiteHeader() {
           <img src="/AutoReviver_logo.png" alt="AutoReviver" className="logo" />
         </Link>
         <ul className="nav-links">
-          <li><Link href="/#features">Features</Link></li>
-          <li><Link href="/#how">How It Works</Link></li>
-          <li><Link href="/#trust">Trust Score</Link></li>
-          <li><Link href="/discover">Demo</Link></li>
+          <li><Link href="/listings">Browse</Link></li>
+          <li><Link href="/sell">Sell</Link></li>
+          <li><Link href="/discover">Discover</Link></li>
         </ul>
-        <Link href="/discover" className="nav-btn">Get Started</Link>
+        <Link href="/listings" className="nav-btn">Get Started</Link>
       </nav>
     </header>
   );

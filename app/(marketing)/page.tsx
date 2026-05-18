@@ -1,10 +1,17 @@
 // Landing page (/). Marketing surface — uses the dark AutoReviver header from
 // (marketing)/layout.tsx and the styles in (marketing)/landing.css.
+//
+// Pulls a featured listing + the vehicle list out of our synthetic data so the
+// demo card on the right is backed by the real compat + trust algorithms.
 
 import Link from "next/link";
 import { CompatDemo } from "./compat-demo";
+import { getAllListings, getVehicles } from "@/lib/data";
 
 export default function LandingPage() {
+  const featured = getAllListings()[0];
+  const vehicles = getVehicles();
+
   return (
     <main>
       <section className="hero">
@@ -30,7 +37,7 @@ export default function LandingPage() {
               <Link href="/sell" className="primary-btn">
                 I&apos;m a Seller <span>→</span>
               </Link>
-              <Link href="/discover" className="secondary-btn">
+              <Link href="/listings" className="secondary-btn">
                 I&apos;m a Buyer <span>→</span>
               </Link>
             </div>
@@ -51,7 +58,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <CompatDemo />
+          <CompatDemo listing={featured} vehicles={vehicles} />
         </div>
       </section>
 

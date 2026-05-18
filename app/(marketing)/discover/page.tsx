@@ -1,8 +1,12 @@
 // /discover — part-swipe demo page. Uses the marketing layout (dark header).
+// Pulls real listings from lib/data.ts so the deck reflects what's actually on the platform.
 
 import { PartSwiper } from "./part-swiper";
+import { getAllListings } from "@/lib/data";
 
 export default function DiscoverPage() {
+  const listings = getAllListings();
+
   return (
     <main className="swipe-page">
       <section className="swipe-hero">
@@ -14,7 +18,7 @@ export default function DiscoverPage() {
         </p>
       </section>
 
-      <PartSwiper />
+      <PartSwiper listings={listings} />
     </main>
   );
 }

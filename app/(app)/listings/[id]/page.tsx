@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { getListingById, isListingSaved } from "@/lib/data";
+import { getListingById, getVehicles, isListingSaved } from "@/lib/data";
 import { createSessionServerClient } from "@/lib/supabase";
 import { computeTrustScore } from "@/lib/trust-score";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,8 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   const isOwner = user != null && listing.userId === user.id;
   const initiallySaved = user ? await isListingSaved(user.id, listing.id) : false;
+
+  const vehicles = await getVehicles();
 
   const images = listing.input.images?.length ? listing.input.images : ["/placeholder.svg"];
 
@@ -73,7 +75,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
 
-        <CompatibilityChecker listingId={listing.id} />
+        <CompatibilityChecker listingId={listing.id} vehicles={vehicles} />
       </div>
 
       <aside className="space-y-6">

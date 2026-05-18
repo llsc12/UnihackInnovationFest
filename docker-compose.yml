@@ -82,10 +82,10 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -h localhost"]
+      test: ["CMD-SHELL", "psql -U postgres -d postgres -c 'SELECT 1 FROM profiles LIMIT 1' > /dev/null 2>&1"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 30
     restart: unless-stopped
 
   # ── Auth (GoTrue) ─────────────────────────────────────────────────────────────

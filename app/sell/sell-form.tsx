@@ -5,7 +5,6 @@
 //   - Validation (zod?) before submit.
 //   - Image upload (or a URL list for now).
 //   - Persist the generated listing somewhere (Stream 5 to provide data layer).
-//   - Streaming response while Claude writes the listing.
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import type { GeneratedListing, ListingInput } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import type { ListingInput } from "@/lib/types";
+import {
+  finalizeListing,
+  parseListingSections,
+  type PartialListing,
+} from "@/lib/listing-format";
+import { cn } from "@/lib/utils";
 
 const EMPTY: ListingInput = {
   partType: "",
@@ -30,8 +36,7 @@ const EMPTY: ListingInput = {
 export function SellForm() {
   const [input, setInput] = useState<ListingInput>(EMPTY);
   const [loading, setLoading] = useState(false);
-  const [generated, setGenerated] = useState<GeneratedListing | null>(null);
-  const [streamingText, setStreamingText] = useState("");
+  const [partial, setPartial] = useState<PartialListing | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof ListingInput>(key: K, value: ListingInput[K]) {
@@ -42,8 +47,7 @@ export function SellForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setGenerated(null);
-    setStreamingText("");
+    setPartial(null);
     try {
       const res = await fetch("/api/generate-listing", {
         method: "POST",
@@ -59,18 +63,18 @@ export function SellForm() {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        setStreamingText(buffer);
+        setPartial(parseListingSections(buffer));
       }
       buffer += decoder.decode();
-
-      setGenerated(JSON.parse(buffer) as GeneratedListing);
-      setStreamingText("");
+      setPartial(parseListingSections(buffer));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
   }
+
+  const final = !loading && partial ? finalizeListing(partial) : null;
 
   return (
     <div className="space-y-6">
@@ -140,36 +144,66 @@ export function SellForm() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {streamingText && !generated && (
+      {(loading || partial) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              Generating…
+              {loading && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+              )}
+              {loading ? "Generating listing…" : "Generated listing"}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
-              {streamingText}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
-
-      {generated && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Generated listing</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <h2 className="text-lg font-semibold">{generated.title}</h2>
-            <p>{generated.description}</p>
-            <p className="text-muted-foreground"><b>Condition:</b> {generated.conditionNotes}</p>
-            <p className="text-muted-foreground"><b>Fits:</b> {generated.compatibilitySummary}</p>
-            <p className="text-muted-foreground"><b>Keywords:</b> {generated.keywords.join(", ")}</p>
+          <CardContent className="space-y-4">
+            <StreamLine
+              value={partial?.title}
+              isActive={loading && partial?.activeField === "title"}
+              placeholder="Title…"
+              className="text-xl font-semibold leading-tight"
+            />
+            <StreamLine
+              value={partial?.description}
+              isActive={loading && partial?.activeField === "description"}
+              placeholder="Description…"
+              className="text-sm leading-relaxed"
+            />
+            <div className="grid gap-3 sm:grid-cols-2 pt-2">
+              <LabelledRow label="Condition">
+                <StreamLine
+                  value={partial?.conditionNotes}
+                  isActive={loading && partial?.activeField === "conditionNotes"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              </LabelledRow>
+              <LabelledRow label="Fits">
+                <StreamLine
+                  value={partial?.compatibilitySummary}
+                  isActive={loading && partial?.activeField === "compatibilitySummary"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              </LabelledRow>
+            </div>
+            <LabelledRow label="Keywords">
+              {final ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {final.keywords.map((k) => (
+                    <Badge key={k} variant="secondary">{k}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <StreamLine
+                  value={partial?.keywordsRaw}
+                  isActive={loading && partial?.activeField === "keywordsRaw"}
+                  placeholder="…"
+                  className="text-sm text-muted-foreground"
+                />
+              )}
+            </LabelledRow>
           </CardContent>
         </Card>
       )}
@@ -186,5 +220,40 @@ function Field({ label, required, children }: { label: string; required?: boolea
       </Label>
       {children}
     </div>
+  );
+}
+
+function LabelledRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Renders a streamed line. Shows a faint placeholder until any text arrives,
+// and a blinking caret on the field currently being written.
+function StreamLine({
+  value,
+  isActive,
+  placeholder,
+  className,
+}: {
+  value: string | undefined;
+  isActive: boolean;
+  placeholder: string;
+  className?: string;
+}) {
+  const hasValue = !!value;
+  return (
+    <p className={cn(className, !hasValue && !isActive && "italic text-muted-foreground/50")}>
+      {hasValue ? value : isActive ? "" : placeholder}
+      {isActive && (
+        <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-0.5 animate-pulse bg-foreground/70 align-middle" />
+      )}
+    </p>
   );
 }

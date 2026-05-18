@@ -4,24 +4,23 @@
 //
 // Two entry points:
 //   generateListing(input)       -> Promise<GeneratedListing>   (one-shot, for tests / server-side use)
-//   generateListingStream(input) -> AsyncIterable<string>       (streams JSON text chunks for the UI)
+//   generateListingStream(input) -> AsyncIterable<string>       (streams section-delimited text for the UI; parsed by lib/listing-format.ts)
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { GeneratedListing, ListingInput } from "@/lib/types";
+import { finalizeListing, parseListingSections } from "@/lib/listing-format";
 import { formatYearRange } from "@/lib/utils";
 
+// Non-streaming entry: drain the stream into a buffer and parse.
 export async function generateListing(input: ListingInput): Promise<GeneratedListing> {
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      return await generateWithClaude(input);
-    } catch (err) {
-      console.error("Claude generation failed, falling back to template:", err);
-    }
+  let buffer = "";
+  for await (const chunk of generateListingStream(input)) {
+    buffer += chunk;
   }
-  return generateWithTemplate(input);
+  return finalizeListing(parseListingSections(buffer));
 }
 
-// Streams the JSON of a GeneratedListing as text chunks.
+// Streams the listing as section-delimited text chunks (see lib/listing-format.ts).
 // Falls back to a fake typewriter over the template if no API key OR if Claude fails
 // before yielding any output. (If Claude fails mid-stream we propagate the error —
 // can't cleanly switch to a template after partial output has already gone to the client.)
@@ -80,22 +79,6 @@ export function generateWithTemplate(input: ListingInput): GeneratedListing {
 
 // ---------- Claude path ----------
 
-async function generateWithClaude(input: ListingInput): Promise<GeneratedListing> {
-  const client = new Anthropic();
-  const res = await client.messages.create({
-    model: claudeModel(),
-    max_tokens: 600,
-    messages: [{ role: "user", content: buildPrompt(input) }],
-  });
-
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-
-  return JSON.parse(text) as GeneratedListing;
-}
-
 async function* generateWithClaudeStream(input: ListingInput): AsyncIterable<string> {
   const client = new Anthropic();
   const stream = client.messages.stream({
@@ -112,11 +95,21 @@ async function* generateWithClaudeStream(input: ListingInput): AsyncIterable<str
 }
 
 // Fake typewriter so the no-API-key path still feels alive in the UI.
+// Emits the same section-delimited format as the Claude path so the client
+// parser doesn't need to know which path produced the bytes.
 async function* generateWithTemplateStream(input: ListingInput): AsyncIterable<string> {
-  const json = JSON.stringify(generateWithTemplate(input));
-  for (let i = 0; i < json.length; i += 4) {
-    yield json.slice(i, i + 4);
-    await new Promise((r) => setTimeout(r, 12));
+  const t = generateWithTemplate(input);
+  const text =
+    `###TITLE\n${t.title}\n` +
+    `###DESCRIPTION\n${t.description}\n` +
+    `###CONDITION\n${t.conditionNotes}\n` +
+    `###COMPATIBILITY\n${t.compatibilitySummary}\n` +
+    `###KEYWORDS\n${t.keywords.join(", ")}\n`;
+
+  // Stream a few characters at a time so the UI gets a typewriter feel.
+  for (let i = 0; i < text.length; i += 3) {
+    yield text.slice(i, i + 3);
+    await new Promise((r) => setTimeout(r, 15));
   }
 }
 
@@ -125,18 +118,28 @@ function claudeModel(): string {
 }
 
 function buildPrompt(input: ListingInput): string {
-  return `You are writing a listing for a used car part marketplace. Output ONLY valid minified JSON matching this TypeScript type:
-{ "title": string, "description": string, "conditionNotes": string, "compatibilitySummary": string, "keywords": string[] }
+  return `You are writing a listing for a used car part marketplace.
+
+Output the listing using this exact section-delimited format. Each section header sits on its own line and starts with three hash signs. Do not output anything before the first header or after the last section's content.
+
+###TITLE
+<one-line title, concise, includes make/model/part/years, max ~80 chars>
+###DESCRIPTION
+<2-4 sentences, honest, mention condition and any notes the seller provided>
+###CONDITION
+<one sentence summarising condition>
+###COMPATIBILITY
+<one sentence describing which vehicles/years/generations this fits>
+###KEYWORDS
+<5-10 useful search terms, comma-separated, no duplicates>
 
 Seller input:
 ${JSON.stringify(input, null, 2)}
 
 Rules:
-- Title: concise, includes make/model/part/years, max ~80 chars.
-- Description: 2-4 sentences, honest, mentions condition and any notes.
-- Keywords: 5-10 useful search terms, no duplicates.
-- Do not invent a part number, only use the one provided.
-- No markdown, no preamble, JSON only.`;
+- Do not invent a part number; only use the one provided (if any).
+- No markdown, no preamble, no closing remarks.
+- Start your response with ###TITLE on the first line.`;
 }
 
 // ---------- helpers ----------

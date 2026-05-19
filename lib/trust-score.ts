@@ -135,8 +135,24 @@ const SIGNALS: Signal[] = [
   },
 ];
 
-export function computeTrustScore(listing: Listing): TrustScoreResult {
-  const signals: TrustSignal[] = SIGNALS.map((s) => {
+export interface TrustScoreExtras {
+  priceAnomalyFlag?: boolean; // pre-computed by detectPriceAnomaly() server-side
+}
+
+export function computeTrustScore(listing: Listing, extras: TrustScoreExtras = {}): TrustScoreResult {
+  // Inject the price anomaly signal dynamically so the core SIGNALS array stays pure.
+  const allSignals: Signal[] = [
+    ...SIGNALS,
+    {
+      key: "price_normal",
+      label: "Price within normal range",
+      weight: 8,
+      kind: "binary" as const,
+      test: () => extras.priceAnomalyFlag !== true,
+    },
+  ];
+
+  const signals: TrustSignal[] = allSignals.map((s) => {
     const earned =
       s.kind === "binary"
         ? s.test(listing)
@@ -154,7 +170,7 @@ export function computeTrustScore(listing: Listing): TrustScoreResult {
   });
 
   const score = Math.round(
-    SIGNALS.reduce((sum, s, i) => {
+    allSignals.reduce((sum, s, i) => {
       const earned =
         s.kind === "binary"
           ? signals[i].passed

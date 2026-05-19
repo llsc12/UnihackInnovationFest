@@ -17,3 +17,6 @@ CREATE INDEX IF NOT EXISTS idx_saved_listings_created ON saved_listings(user_id,
 
 ALTER TABLE saved_listings ENABLE ROW LEVEL SECURITY;
 -- Intentionally no policies. anon/authenticated cannot reach this table directly.
+
+-- service_role bypasses RLS but still needs table-level grants.
+GRANT SELECT, INSERT, DELETE ON saved_listings TO service_role;

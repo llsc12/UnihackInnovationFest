@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { checkCompatibility } from "@/lib/compatibility";
 import { computeTrustScore } from "@/lib/trust-score";
 import { formatYearRange } from "@/lib/utils";
+import type { CompatibilityRule } from "@/lib/data";
 import type { CompatibilityResult, Listing, Vehicle } from "@/lib/types";
 
 const TABS = ["Compatibility Check", "Part Details", "Seller Info"] as const;
@@ -16,9 +17,10 @@ type Tab = (typeof TABS)[number];
 interface Props {
   listing: Listing;
   vehicles: Vehicle[];
+  compatRules: Record<string, CompatibilityRule[]>;
 }
 
-export function CompatDemo({ listing, vehicles }: Props) {
+export function CompatDemo({ listing, vehicles, compatRules }: Props) {
   const trust = useMemo(() => computeTrustScore(listing), [listing]);
 
   // Default the dropdowns to a vehicle the listing actually fits (green out of the box).
@@ -49,11 +51,11 @@ export function CompatDemo({ listing, vehicles }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    checkCompatibility(listing, { make, model, year }).then((r) => {
+    checkCompatibility(listing, { make, model, year }, compatRules).then((r) => {
       if (!cancelled) setResult(r);
     });
     return () => { cancelled = true; };
-  }, [listing, make, model, year]);
+  }, [listing, make, model, year, compatRules]);
 
   const rowClass =
     result.verdict === "compatible"

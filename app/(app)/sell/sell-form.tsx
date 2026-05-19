@@ -47,6 +47,7 @@ export function SellForm() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
+  const [duplicateUrls, setDuplicateUrls] = useState<Set<string>>(new Set());
   const [posting, setPosting] = useState(false);
   const [postedId, setPostedId] = useState<string | null>(null);
 
@@ -75,8 +76,18 @@ export function SellForm() {
       toUpload.forEach((f) => fd.append("images", f));
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       if (!res.ok) throw new Error((await res.json()).error ?? await res.text());
-      const { urls } = await res.json() as { urls: string[] };
-      set("images", [...(input.images ?? []), ...urls]);
+      const data = await res.json() as {
+        urls: string[];
+        duplicates?: { url: string }[];
+      };
+      set("images", [...(input.images ?? []), ...data.urls]);
+      if (data.duplicates?.length) {
+        setDuplicateUrls((prev) => {
+          const next = new Set(prev);
+          data.duplicates!.forEach((d) => next.add(d.url));
+          return next;
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -299,23 +310,31 @@ export function SellForm() {
             <div className="sm:col-span-2 space-y-3">
               <Label>Photos (up to 4)</Label>
               <div className="flex flex-wrap gap-3">
-                {(input.images ?? []).map((url, i) => (
-                  <div key={url} className="relative h-24 w-24 shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={`Part photo ${i + 1}`}
-                      className="h-full w-full rounded-md border object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(i)}
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] text-destructive-foreground shadow"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                {(input.images ?? []).map((url, i) => {
+                  const isDuplicate = duplicateUrls.has(url);
+                  return (
+                    <div key={url} className="relative h-24 w-24 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`Part photo ${i + 1}`}
+                        className={`h-full w-full rounded-md border object-cover ${isDuplicate ? "border-amber-400 opacity-80" : ""}`}
+                      />
+                      {isDuplicate && (
+                        <div className="absolute bottom-0 left-0 right-0 rounded-b-md bg-amber-500/90 px-1 py-0.5 text-center text-[9px] font-bold text-white leading-tight">
+                          DUPLICATE
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(i)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] text-destructive-foreground shadow"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
                 {(input.images?.length ?? 0) < 4 && (
                   <label className="flex h-24 w-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary">
                     {uploading ? "Uploading…" : (
@@ -335,6 +354,11 @@ export function SellForm() {
                   </label>
                 )}
               </div>
+              {duplicateUrls.size > 0 && (
+                <p className="text-xs text-amber-600">
+                  ⚠ {duplicateUrls.size === 1 ? "One image has" : `${duplicateUrls.size} images have`} been used in a previous listing. Using stolen images may result in your listing being removed.
+                </p>
+              )}
               {(input.images?.length ?? 0) > 0 && (
                 <Button
                   type="button"

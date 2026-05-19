@@ -220,6 +220,54 @@ export async function updateListing(
   if (error) throw new Error(`updateListing: ${error.message}`);
 }
 
+// ── Image hashing ────────────────────────────────────────────────────────────
+
+export interface ImageHashMatch {
+  hash: string;
+  listingId: string | null;
+  imageUrl: string;
+}
+
+// Returns an existing record if this hash has been seen before, else null.
+// Gracefully returns null if the table doesn't exist yet (migration not run).
+export async function checkImageHash(hash: string): Promise<ImageHashMatch | null> {
+  const supabase = createServerClient();
+  try {
+    const { data } = await supabase
+      .from("image_hashes")
+      .select("hash, listing_id, image_url")
+      .eq("hash", hash)
+      .maybeSingle();
+    if (!data) return null;
+    return { hash: data.hash, listingId: data.listing_id ?? null, imageUrl: data.image_url };
+  } catch {
+    return null;
+  }
+}
+
+// Stores a hash → URL mapping. listing_id is attached later via attachHashesToListing.
+export async function storeImageHash(hash: string, imageUrl: string): Promise<void> {
+  const supabase = createServerClient();
+  try {
+    await supabase
+      .from("image_hashes")
+      .upsert({ hash, image_url: imageUrl }, { onConflict: "hash", ignoreDuplicates: true });
+  } catch {
+    // Non-fatal — hash storage failure should not block upload
+  }
+}
+
+// Associates hashes with a listing once it has been created.
+export async function attachHashesToListing(hashes: string[], listingId: string): Promise<void> {
+  if (!hashes.length) return;
+  const supabase = createServerClient();
+  try {
+    await supabase.from("image_hashes").update({ listing_id: listingId }).in("hash", hashes);
+  } catch {
+    // Non-fatal
+  }
+}
+
 // ── Seller profiles ──────────────────────────────────────────────────────────
 
 export async function getSellerById(sellerId: string): Promise<import("@/lib/types").Seller | undefined> {

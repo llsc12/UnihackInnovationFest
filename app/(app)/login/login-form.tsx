@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
 import { useSearchParams } from "next/navigation";
-=======
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,18 +9,21 @@ import { Label } from "@/components/ui/label";
 import { createBrowserClient } from "@/lib/supabase";
 
 type Mode = "login" | "register";
+type PrivacyMode = "public" | "private";
 
 export function LoginForm() {
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
   const searchParams = useSearchParams();
-  const initialMode: Mode = searchParams.get("mode") === "signup" ? "register" : "login";
+  const initialMode: Mode =
+    searchParams.get("mode") === "signup" ? "register" : "login";
 
   const [mode, setMode] = useState<Mode>(initialMode);
-=======
-  const [mode, setMode] = useState<Mode>("login");
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // registration-only fields
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [privacyMode, setPrivacyMode] = useState<PrivacyMode>("public");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,22 +34,52 @@ export function LoginForm() {
 
     const supabase = createBrowserClient();
 
-    const { error } =
-      mode === "login"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+    if (mode === "login") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+    } else {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
+      // Pass the access token explicitly — the session cookie may not be set
+      // in the browser yet when this fetch fires immediately after signUp.
+      const token = signUpData.session?.access_token;
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ username, fullName, dateOfBirth, privacyMode }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error ?? "Failed to create profile");
+        setLoading(false);
+        return;
+      }
     }
 
-<<<<<<< HEAD:app/(app)/login/login-form.tsx
     window.location.assign("/");
-=======
-    window.location.href = "/";
->>>>>>> 9a51683466bd28ae51db72995d846f22cb9e191b:app/login/login-form.tsx
+  }
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
   }
 
   return (
@@ -78,10 +108,83 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
               minLength={6}
             />
           </div>
+
+          {mode === "register" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                    )
+                  }
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  placeholder="e.g. john_parts"
+                  autoComplete="username"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName">Full name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  autoComplete="name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="dob">Date of birth</Label>
+                <Input
+                  id="dob"
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  required
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Profile visibility</Label>
+                <div className="flex gap-4 text-sm">
+                  {(["public", "private"] as PrivacyMode[]).map((v) => (
+                    <label
+                      key={v}
+                      className="flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        name="privacyMode"
+                        value={v}
+                        checked={privacyMode === v}
+                        onChange={() => setPrivacyMode(v)}
+                      />
+                      <span className="capitalize">{v}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {privacyMode === "public"
+                    ? "Your full name is visible to other users."
+                    : "Only your username is visible to other users."}
+                </p>
+              </div>
+            </>
+          )}
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "…" : mode === "login" ? "Sign in" : "Create account"}
@@ -91,7 +194,9 @@ export function LoginForm() {
             <button
               type="button"
               className="underline"
-              onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
+              onClick={() =>
+                switchMode(mode === "login" ? "register" : "login")
+              }
             >
               {mode === "login" ? "Register" : "Sign in"}
             </button>

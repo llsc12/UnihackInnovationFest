@@ -3,7 +3,16 @@
 // without touching call sites if you ever need a different backend.
 
 import { createServerClient } from "@/lib/supabase";
-import type { GeneratedListing, Listing, ListingInput, Vehicle } from "@/lib/types";
+import type {
+  GeneratedListing,
+  Listing,
+  ListingInput,
+  OwnProfile,
+  PartOrigin,
+  PrivacyMode,
+  PublicProfile,
+  Vehicle,
+} from "@/lib/types";
 
 export interface CompatibilityRule {
   generation: string;
@@ -12,27 +21,72 @@ export interface CompatibilityRule {
   notes?: string;
 }
 
+// ── Listings ──────────────────────────────────────────────────────────────────
+
+// No profile join here — profiles is linked via user_id but PostgREST requires
+// a FK in the schema cache to resolve it. We fetch profiles in a separate batch
+// query instead, which works regardless of whether the FK migration has run.
+const LISTING_SELECT = `
+  *,
+  seller:sellers(*),
+  fits_vehicles:listing_fits_vehicles(make, model, year_from, year_to)
+`.trim();
+
+// Fetch profiles for a set of user_ids in one query, keyed by user_id.
+async function fetchProfilesForUserIds(
+  userIds: string[],
+): Promise<Record<string, { username: string; full_name: string; privacy_mode: string; created_at: string }>> {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, privacy_mode, created_at")
+    .in("id", ids);
+  const map: Record<string, { username: string; full_name: string; privacy_mode: string; created_at: string }> = {};
+  for (const p of data ?? []) map[p.id] = p;
+  return map;
+}
+
 export async function getAllListings(): Promise<Listing[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("listings")
-    .select(`*, seller:sellers(*), fits_vehicles:listing_fits_vehicles(make, model, year_from, year_to)`)
+    .select(LISTING_SELECT)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`getAllListings: ${error.message}`);
-  return (data ?? []).map(rowToListing);
+  const rows = data ?? [];
+  const profiles = await fetchProfilesForUserIds(rows.map((r) => r.user_id).filter(Boolean));
+  return rows.map((r) => rowToListing(r, profiles[r.user_id] ?? null));
 }
 
 export async function getListingById(id: string): Promise<Listing | undefined> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("listings")
-    .select(`*, seller:sellers(*), fits_vehicles:listing_fits_vehicles(make, model, year_from, year_to)`)
+    .select(LISTING_SELECT)
     .eq("id", id)
     .maybeSingle();
 
   if (error) throw new Error(`getListingById: ${error.message}`);
-  return data ? rowToListing(data) : undefined;
+  if (!data) return undefined;
+  const profiles = await fetchProfilesForUserIds(data.user_id ? [data.user_id] : []);
+  return rowToListing(data, profiles[data.user_id] ?? null);
+}
+
+export async function getListingsByUser(userId: string): Promise<Listing[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select(LISTING_SELECT)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`getListingsByUser: ${error.message}`);
+  const rows = data ?? [];
+  const profiles = await fetchProfilesForUserIds([userId]);
+  return rows.map((r) => rowToListing(r, profiles[userId] ?? null));
 }
 
 export async function getVehicles(): Promise<Vehicle[]> {
@@ -45,10 +99,16 @@ export async function getVehicles(): Promise<Vehicle[]> {
     .order("year");
 
   if (error) throw new Error(`getVehicles: ${error.message}`);
-  return (data ?? []).map((r) => ({ make: r.make, model: r.model, year: r.year }));
+  return (data ?? []).map((r) => ({
+    make: r.make,
+    model: r.model,
+    year: r.year,
+  }));
 }
 
-export async function getCompatibilityRules(): Promise<Record<string, CompatibilityRule[]>> {
+export async function getCompatibilityRules(): Promise<
+  Record<string, CompatibilityRule[]>
+> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("compatibility_rules")
@@ -80,13 +140,21 @@ export async function createListing(
   const supabase = createServerClient();
   const id = `lst_${Date.now()}`;
 
-  // Upsert a seller record for this user if one doesn't exist yet
-  const email = userId; // placeholder display name until profile editing exists
+  // Derive a display name for the seller record from their profile if available
+  const profile = await getOwnProfile(userId);
+  const sellerName = profile
+    ? profile.privacyMode === "public"
+      ? profile.fullName
+      : profile.username
+    : userId;
+
   const sellerId = `slr_${userId.slice(0, 8)}`;
-  await supabase.from("sellers").upsert(
-    { id: sellerId, name: email, verified: false, user_id: userId },
-    { onConflict: "id", ignoreDuplicates: true },
-  );
+  await supabase
+    .from("sellers")
+    .upsert(
+      { id: sellerId, name: sellerName, verified: false, user_id: userId },
+      { onConflict: "id", ignoreDuplicates: false },
+    );
 
   const { error: listingError } = await supabase.from("listings").insert({
     id,
@@ -103,6 +171,9 @@ export async function createListing(
     price: input.price ?? null,
     images: input.images ?? [],
     has_return_policy: input.hasReturnPolicy ?? false,
+    return_policy_details: input.returnPolicyDetails ?? null,
+    postage_info: input.postageInfo ?? null,
+    part_origin: input.partOrigin ?? "unknown",
     title: generated.title,
     description: generated.description,
     condition_notes: generated.conditionNotes,
@@ -112,7 +183,8 @@ export async function createListing(
   if (listingError) throw new Error(`createListing: ${listingError.message}`);
 
   const listing = await getListingById(id);
-  if (!listing) throw new Error("createListing: could not retrieve inserted listing");
+  if (!listing)
+    throw new Error("createListing: could not retrieve inserted listing");
   return listing;
 }
 
@@ -131,10 +203,18 @@ export async function updateListing(
   if (input.partNumber !== undefined) patch.part_number = input.partNumber;
   if (input.notes !== undefined) patch.notes = input.notes;
   if (input.price !== undefined) patch.price = input.price;
+  if (input.hasReturnPolicy !== undefined)
+    patch.has_return_policy = input.hasReturnPolicy;
+  if (input.returnPolicyDetails !== undefined)
+    patch.return_policy_details = input.returnPolicyDetails;
+  if (input.postageInfo !== undefined) patch.postage_info = input.postageInfo;
+  if (input.partOrigin !== undefined) patch.part_origin = input.partOrigin;
   if (input.title !== undefined) patch.title = input.title;
   if (input.description !== undefined) patch.description = input.description;
-  if (input.conditionNotes !== undefined) patch.condition_notes = input.conditionNotes;
-  if (input.compatibilitySummary !== undefined) patch.compatibility_summary = input.compatibilitySummary;
+  if (input.conditionNotes !== undefined)
+    patch.condition_notes = input.conditionNotes;
+  if (input.compatibilitySummary !== undefined)
+    patch.compatibility_summary = input.compatibilitySummary;
   if (input.keywords !== undefined) patch.keywords = input.keywords;
   const { error } = await supabase.from("listings").update(patch).eq("id", id);
   if (error) throw new Error(`updateListing: ${error.message}`);
@@ -237,8 +317,107 @@ export async function getSavedListings(userId: string): Promise<Listing[]> {
   return (data ?? []).map((row: any) => rowToListing(row.listing));
 }
 
+// ── Profiles ──────────────────────────────────────────────────────────────────
+
+// Returns public-safe profile data for any user. Never includes DOB or email.
+export async function getPublicProfile(
+  username: string,
+): Promise<PublicProfile | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, privacy_mode, created_at")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) throw new Error(`getPublicProfile: ${error.message}`);
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    username: data.username,
+    fullName: data.privacy_mode === "public" ? data.full_name : null,
+    memberSince: data.created_at,
+  };
+}
+
+// Returns full profile including DOB and email — only ever call this for the
+// authenticated user themselves, never for rendering other users' pages.
+export async function getOwnProfile(
+  userId: string,
+): Promise<OwnProfile | null> {
+  const supabase = createServerClient();
+
+  const [profileRes, userRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("username, full_name, date_of_birth, privacy_mode, created_at")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase.auth.admin.getUserById(userId),
+  ]);
+
+  if (profileRes.error)
+    throw new Error(`getOwnProfile: ${profileRes.error.message}`);
+  if (!profileRes.data) return null;
+
+  const p = profileRes.data;
+  return {
+    id: userId,
+    username: p.username,
+    fullName: p.full_name,
+    dateOfBirth: p.date_of_birth,
+    privacyMode: p.privacy_mode as PrivacyMode,
+    memberSince: p.created_at,
+    email: userRes.data.user?.email ?? "",
+  };
+}
+
+export async function createProfile(
+  userId: string,
+  data: {
+    username: string;
+    fullName: string;
+    dateOfBirth: string;
+    privacyMode: PrivacyMode;
+  },
+): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase.from("profiles").insert({
+    id: userId,
+    username: data.username,
+    full_name: data.fullName,
+    date_of_birth: data.dateOfBirth,
+    privacy_mode: data.privacyMode,
+  });
+  if (error) throw new Error(`createProfile: ${error.message}`);
+}
+
+export async function updateProfile(
+  userId: string,
+  patch: { username?: string; fullName?: string; privacyMode?: PrivacyMode },
+): Promise<void> {
+  const supabase = createServerClient();
+  const update: Record<string, unknown> = {};
+  if (patch.username !== undefined) update.username = patch.username;
+  if (patch.fullName !== undefined) update.full_name = patch.fullName;
+  if (patch.privacyMode !== undefined) update.privacy_mode = patch.privacyMode;
+  const { error } = await supabase
+    .from("profiles")
+    .update(update)
+    .eq("id", userId);
+  if (error) throw new Error(`updateProfile: ${error.message}`);
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
 // eslint-disable-next-line
-function rowToListing(row: any): Listing {
+function rowToListing(
+  row: any,
+  prof: { username: string; full_name: string; privacy_mode: string; created_at: string } | null = null,
+): Listing {
+  const isPublic = prof?.privacy_mode === "public";
+
   return {
     id: row.id,
     userId: row.user_id ?? undefined,
@@ -254,6 +433,9 @@ function rowToListing(row: any): Listing {
       price: row.price ?? undefined,
       images: row.images ?? [],
       hasReturnPolicy: row.has_return_policy ?? false,
+      returnPolicyDetails: row.return_policy_details ?? undefined,
+      postageInfo: row.postage_info ?? undefined,
+      partOrigin: (row.part_origin ?? "unknown") as PartOrigin,
     },
     generated: {
       title: row.title,
@@ -269,6 +451,14 @@ function rowToListing(row: any): Listing {
       rating: row.seller.rating ?? undefined,
       reviewCount: row.seller.review_count ?? undefined,
       location: row.seller.location ?? undefined,
+      ...(prof
+        ? {
+            username: prof.username,
+            fullName: isPublic ? prof.full_name : null,
+            memberSince: prof.created_at,
+            profileUrl: `/profile/${prof.username}`,
+          }
+        : {}),
     },
     fitsVehicles: (row.fits_vehicles ?? []).map((v: any) => ({
       make: v.make,

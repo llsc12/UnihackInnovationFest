@@ -7,10 +7,14 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { CompatDemo } from "./compat-demo";
-import { getAllListings, getVehicles } from "@/lib/data";
+import { getAllListings, getCompatibilityRules, getVehicles } from "@/lib/data";
 
 export default async function LandingPage() {
-  const [listings, vehicles] = await Promise.all([getAllListings(), getVehicles()]);
+  const [listings, vehicles, compatRules] = await Promise.all([
+    getAllListings(),
+    getVehicles(),
+    getCompatibilityRules(),
+  ]);
   const featured = listings[0];
 
   return (
@@ -59,7 +63,7 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          {featured && <CompatDemo listing={featured} vehicles={vehicles} />}
+          {featured && <CompatDemo listing={featured} vehicles={vehicles} compatRules={compatRules} />}
         </div>
       </section>
 

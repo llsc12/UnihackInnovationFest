@@ -4,9 +4,9 @@
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-import type { User } from "@supabase/supabase-js";
 import { createSessionServerClient } from "@/lib/supabase";
 import { isSupabaseAuthCookieName } from "@/lib/supabase-cookies";
+import { getOwnProfile } from "@/lib/data";
 import { LogoutButton } from "@/components/logout-button";
 
 export async function SiteHeader() {
@@ -15,17 +15,19 @@ export async function SiteHeader() {
     .getAll()
     .some(({ name }) => isSupabaseAuthCookieName(name));
 
-  let user: User | null = null;
+  let userId: string | null = null;
 
   if (hasAuthCookie) {
     const supabase = createSessionServerClient(cookieStore);
     try {
       const { data, error } = await supabase.auth.getUser();
-      if (!error) user = data.user;
+      if (!error) userId = data.user?.id ?? null;
     } catch {
-      user = null;
+      userId = null;
     }
   }
+
+  const profile = userId ? await getOwnProfile(userId).catch(() => null) : null;
 
   return (
     <header className="site-header">
@@ -39,12 +41,16 @@ export async function SiteHeader() {
           <li><Link href="/listings">Browse</Link></li>
           <li><Link href="/sell">Sell</Link></li>
           <li><Link href="/discover">Discover</Link></li>
-          {user && <li><Link href="/saved">Saved</Link></li>}
+          {userId && <li><Link href="/saved">Saved</Link></li>}
         </ul>
 
-        {user ? (
+        {userId ? (
           <div className="nav-auth">
-            <span className="nav-user-email" title={user.email ?? ""}>{user.email}</span>
+            {profile ? (
+              <Link href={`/profile/${profile.username}`} className="nav-user-email">
+                @{profile.username}
+              </Link>
+            ) : null}
             <LogoutButton />
           </div>
         ) : (

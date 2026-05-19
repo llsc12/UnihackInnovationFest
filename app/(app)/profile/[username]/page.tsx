@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { getPublicProfile, getOwnProfile, getListingsByUser } from "@/lib/data";
+import { getPublicProfile, getOwnProfile, getListingsByUser, getSellerByUserId } from "@/lib/data";
 import { createSessionServerClient } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +27,19 @@ export default async function ProfilePage({ params }: PageProps) {
   // Only fetch full OwnProfile (with DOB) when rendering the owner's own page
   const ownProfile = isOwner ? await getOwnProfile(user!.id).catch(() => null) : null;
 
-  const listings = await getListingsByUser(publicProfile.id);
+  const [listings, seller] = await Promise.all([
+    getListingsByUser(publicProfile.id),
+    getSellerByUserId(publicProfile.id),
+  ]);
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Profile header */}
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold">@{publicProfile.username}</h1>
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-3xl font-bold">@{publicProfile.username}</h1>
+          {seller?.verified && <Badge variant="success">Verified</Badge>}
+        </div>
         {publicProfile.fullName && (
           <p className="text-lg text-muted-foreground">{publicProfile.fullName}</p>
         )}
@@ -44,6 +50,15 @@ export default async function ProfilePage({ params }: PageProps) {
             year: "numeric",
           })}
         </p>
+        {seller?.location && (
+          <p className="text-sm text-muted-foreground">{seller.location}</p>
+        )}
+        {seller?.rating != null && (
+          <p className="text-sm text-muted-foreground">
+            ★ {seller.rating}{" "}
+            {seller.reviewCount != null && `(${seller.reviewCount} review${seller.reviewCount === 1 ? "" : "s"})`}
+          </p>
+        )}
       </div>
 
       {/* Listings */}

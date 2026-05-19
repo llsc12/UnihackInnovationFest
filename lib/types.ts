@@ -67,6 +67,7 @@ export interface Listing {
   generated: GeneratedListing;
   seller: Seller;
   fitsVehicles: VehicleRange[]; // explicit compat envelope for this listing
+  fraudFlags: string[];         // machine-readable fraud codes, e.g. 'duplicate_image'
   createdAt: string; // ISO date
 }
 

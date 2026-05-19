@@ -11,14 +11,21 @@ export function ListingCard({ listing }: { listing: Listing }) {
   const image = listing.input.images?.[0] ?? "/placeholder.svg";
   const fit = listing.fitsVehicles[0];
   const fitsLabel = fit ? `Fits ${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : null;
+  const hasDuplicateImage = listing.fraudFlags.includes("duplicate_image");
 
   return (
     <Link href={`/listings/${listing.id}`} className="browse-card">
       <div
-        className="browse-card-image"
+        className="browse-card-image relative"
         style={{ backgroundImage: `url("${image}")` }}
         aria-hidden
-      />
+      >
+        {hasDuplicateImage && (
+          <span className="absolute left-1.5 top-1.5 rounded bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+            ⚠ Duplicate image
+          </span>
+        )}
+      </div>
       <div className="browse-card-body">
         <div className="browse-card-chips">
           <span className="browse-card-chip part">{listing.input.partType}</span>

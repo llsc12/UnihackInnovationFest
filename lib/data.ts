@@ -136,6 +136,7 @@ export async function createListing(
   input: ListingInput,
   generated: GeneratedListing,
   userId: string,
+  fraudFlags: string[] = [],
 ): Promise<Listing> {
   const supabase = createServerClient();
   const id = `lst_${Date.now()}`;
@@ -179,6 +180,7 @@ export async function createListing(
     condition_notes: generated.conditionNotes,
     compatibility_summary: generated.compatibilitySummary,
     keywords: generated.keywords,
+    fraud_flags: fraudFlags,
   });
   if (listingError) throw new Error(`createListing: ${listingError.message}`);
 
@@ -278,6 +280,25 @@ export async function getSellerById(sellerId: string): Promise<import("@/lib/typ
     .eq("id", sellerId)
     .maybeSingle();
   if (error) throw new Error(`getSellerById: ${error.message}`);
+  if (!data) return undefined;
+  return {
+    id: data.id,
+    name: data.name,
+    verified: data.verified,
+    rating: data.rating ?? undefined,
+    reviewCount: data.review_count ?? undefined,
+    location: data.location ?? undefined,
+  };
+}
+
+export async function getSellerByUserId(userId: string): Promise<import("@/lib/types").Seller | undefined> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("sellers")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`getSellerByUserId: ${error.message}`);
   if (!data) return undefined;
   return {
     id: data.id,
@@ -514,6 +535,7 @@ function rowToListing(
       yearFrom: v.year_from,
       yearTo: v.year_to,
     })),
+    fraudFlags: row.fraud_flags ?? [],
     createdAt: row.created_at,
   };
 }

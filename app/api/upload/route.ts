@@ -4,9 +4,10 @@
 // Images are stored in Supabase Storage under listing-images/{userId}/{uuid}.{ext}
 
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { cookies } from "next/headers";
 import { createSessionServerClient, createServerClient } from "@/lib/supabase";
+import { checkImageHash, storeImageHash } from "@/lib/data";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -56,15 +57,22 @@ export async function POST(req: Request) {
   }
 
   const urls: string[] = [];
+  const hashes: string[] = [];
+  const duplicates: { url: string; matchedUrl: string; matchedListingId: string | null }[] = [];
 
   for (const file of files) {
     const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
     const path = `${user.id}/${randomUUID()}.${ext}`;
     const bytes = await file.arrayBuffer();
+    const buf = Buffer.from(bytes);
+
+    // Compute SHA-256 fingerprint and check for prior uploads
+    const hash = createHash("sha256").update(buf).digest("hex");
+    const existing = await checkImageHash(hash);
 
     const { error } = await supabase.storage
       .from("listing-images")
-      .upload(path, Buffer.from(bytes), { contentType: file.type, upsert: false });
+      .upload(path, buf, { contentType: file.type, upsert: false });
 
     if (error) {
       return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
@@ -75,7 +83,14 @@ export async function POST(req: Request) {
       .getPublicUrl(path);
 
     urls.push(publicUrl);
+    hashes.push(hash);
+
+    if (existing) {
+      duplicates.push({ url: publicUrl, matchedUrl: existing.imageUrl, matchedListingId: existing.listingId });
+    } else {
+      await storeImageHash(hash, publicUrl);
+    }
   }
 
-  return NextResponse.json({ urls });
+  return NextResponse.json({ urls, hashes, duplicates });
 }

@@ -9,14 +9,6 @@ function supabaseUrl() {
   return url;
 }
 
-// Cookie names are derived from the public URL hostname (what the browser uses).
-// In Docker the server calls a different internal URL, so we pin the storageKey
-// to the public hostname so browser-written cookies are found server-side.
-function authStorageKey() {
-  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  return `sb-${new URL(publicUrl).hostname}-auth-token`;
-}
-
 // ── Service-role client (bypasses RLS) ────────────────────────────────────────
 // Server-side only — never ship this key to the browser.
 export function createServerClient() {
@@ -48,7 +40,6 @@ export function createSessionServerClient(cookieStore: Awaited<ReturnType<typeof
         }
       },
     },
-    auth: { storageKey: authStorageKey() },
   });
 }
 

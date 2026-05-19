@@ -173,10 +173,11 @@ export function SellForm() {
     setPosting(true);
     setError(null);
     try {
+      const fraudFlags = duplicateUrls.size > 0 ? ["duplicate_image"] : [];
       const res = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, generated: editable }),
+        body: JSON.stringify({ input, generated: editable, fraudFlags }),
       });
       if (!res.ok) throw new Error(await res.text());
       const listing = await res.json();

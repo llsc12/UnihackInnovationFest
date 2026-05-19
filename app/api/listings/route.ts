@@ -27,8 +27,8 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { input, generated } = await req.json();
-    const listing = await createListing(input, generated, user.id);
+    const { input, generated, fraudFlags } = await req.json();
+    const listing = await createListing(input, generated, user.id, fraudFlags ?? []);
     return NextResponse.json(listing, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -1,12 +1,9 @@
 // POST /api/analyse-image
-// Body: { urls: string[] }  — image URLs returned by /api/upload (1-4 images)
-// Response: { partType, condition, partNumber, notes, make, model, yearFrom, yearTo, partOrigin }
-// All images are sent to Claude Haiku in a single message for richer context.
-// Supabase Storage URLs are fetched over HTTP; local /uploads/ files are read from disk.
+// Body: { url: string }  — a Supabase Storage URL returned by /api/upload
+// Response: { partType, condition, partNumber, notes }
+// Fetches the image from its public URL and sends it to Claude Vision.
 
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
-import { join } from "path";
 import Anthropic from "@anthropic-ai/sdk";
 
 type MediaType = "image/jpeg" | "image/png" | "image/webp";
@@ -19,39 +16,36 @@ const EXT_TO_MIME: Record<string, MediaType> = {
 };
 
 function isAllowedImageUrl(url: string): boolean {
+  // Accept Supabase Storage public URLs and legacy local /uploads/ paths
   const supabaseBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (supabaseBase && url.startsWith(supabaseBase)) return true;
   if (url.startsWith("/uploads/")) return true;
   return false;
 }
 
-function mediaTypeFromUrl(url: string): MediaType {
-  const ext = url.split("?")[0].split(".").pop()?.toLowerCase() ?? "";
-  return EXT_TO_MIME[ext] ?? "image/jpeg";
-}
+export async function POST(req: Request) {
+  const { url } = (await req.json()) as { url?: string };
 
-async function loadImageAsBase64(url: string): Promise<{ data: string; mediaType: MediaType }> {
-  const mediaType = mediaTypeFromUrl(url);
-
-  if (url.startsWith("/uploads/")) {
-    // Read local fallback files directly from public/uploads/ — avoids HTTP round-trip
-    const filename = url.replace("/uploads/", "");
-    const buf = await readFile(join(process.cwd(), "public", "uploads", filename));
-    return { data: buf.toString("base64"), mediaType };
+  if (!url || !isAllowedImageUrl(url)) {
+    return NextResponse.json({ error: "Invalid image URL" }, { status: 400 });
   }
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  return { data: buf.toString("base64"), mediaType };
-}
+  // Resolve relative /uploads/ paths to absolute for fetch
+  const absoluteUrl = url.startsWith("/")
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}${url}`
+    : url;
 
-export async function POST(req: Request) {
-  const body = (await req.json()) as { urls?: string[] };
-  const urls = (body.urls ?? []).filter((u) => isAllowedImageUrl(u)).slice(0, 4);
+  const ext = absoluteUrl.split(".").pop()?.toLowerCase() ?? "";
+  const mediaType: MediaType = EXT_TO_MIME[ext] ?? "image/jpeg";
 
-  if (!urls.length) {
-    return NextResponse.json({ error: "At least one valid image URL is required" }, { status: 400 });
+  let imageData: string;
+  try {
+    const res = await fetch(absoluteUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    imageData = buffer.toString("base64");
+  } catch (err) {
+    return NextResponse.json({ error: `Could not fetch image: ${err}` }, { status: 404 });
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -60,61 +54,31 @@ export async function POST(req: Request) {
       condition: "good",
       partNumber: null,
       notes: "Part appears to be in good condition (demo mode — add ANTHROPIC_API_KEY to enable real analysis).",
-      make: null,
-      model: null,
-      yearFrom: null,
-      yearTo: null,
-      partOrigin: "unknown",
     });
   }
 
-  let images: { data: string; mediaType: MediaType }[];
-  try {
-    images = await Promise.all(urls.map(loadImageAsBase64));
-  } catch (err) {
-    return NextResponse.json({ error: `Could not load image: ${err}` }, { status: 404 });
-  }
-
   const client = new Anthropic();
-
-  const imageBlocks: Anthropic.ImageBlockParam[] = images.map((img) => ({
-    type: "image",
-    source: { type: "base64", media_type: img.mediaType, data: img.data },
-  }));
-
   const res = await client.messages.create({
-    model: "claude-haiku-4-5",
-    max_tokens: 400,
+    model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5",
+    max_tokens: 300,
     messages: [
       {
         role: "user",
         content: [
-          ...imageBlocks,
+          {
+            type: "image",
+            source: { type: "base64", media_type: mediaType, data: imageData },
+          },
           {
             type: "text",
-            text: `Analyse these car part image(s). Output ONLY valid minified JSON with these exact keys:
-{
-  "partType": string,
-  "condition": "new"|"like-new"|"good"|"fair"|"for-parts",
-  "partNumber": string|null,
-  "notes": string,
-  "make": string|null,
-  "model": string|null,
-  "yearFrom": number|null,
-  "yearTo": number|null,
-  "partOrigin": "oem"|"aftermarket"|"unknown"
-}
+            text: `Analyse this car part image. Output ONLY valid minified JSON:
+{ "partType": string, "condition": "new"|"like-new"|"good"|"fair"|"for-parts", "partNumber": string|null, "notes": string }
 
-Rules:
-- partType: type of car part (e.g. "Headlight", "Alternator", "Brake Caliper")
-- condition: estimate based on visible wear/damage
+- partType: the type of car part (e.g. "Headlight", "Alternator", "Brake Caliper")
+- condition: your best estimate based on visible wear/damage
 - partNumber: any visible part number stamped or labelled on the part, or null
 - notes: 1-2 honest sentences about visible condition or notable features
-- make: vehicle manufacturer if identifiable from badges, labels, or packaging (e.g. "Volkswagen"), or null
-- model: vehicle model if identifiable (e.g. "Golf"), or null
-- yearFrom/yearTo: estimated year range the part fits if determinable, or null — use same value for both if single year known
-- partOrigin: "oem" if branded as original equipment, "aftermarket" if clearly a third-party part, otherwise "unknown"
-- No markdown, no explanation, JSON only.`,
+- No markdown, JSON only.`,
           },
         ],
       },

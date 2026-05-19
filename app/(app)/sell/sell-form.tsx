@@ -100,15 +100,15 @@ export function SellForm() {
   }
 
   async function handleAnalyse() {
-    const urls = input.images ?? [];
-    if (!urls.length) return;
+    const url = input.images?.[0];
+    if (!url) return;
     setAnalysing(true);
     setError(null);
     try {
       const res = await fetch("/api/analyse-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls }),
+        body: JSON.stringify({ url }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? await res.text());
       const data = await res.json() as {
@@ -116,21 +116,11 @@ export function SellForm() {
         condition?: ListingInput["condition"];
         partNumber?: string | null;
         notes?: string;
-        make?: string | null;
-        model?: string | null;
-        yearFrom?: number | null;
-        yearTo?: number | null;
-        partOrigin?: PartOrigin;
       };
       if (data.partType) set("partType", data.partType);
       if (data.condition) set("condition", data.condition);
       if (data.partNumber) set("partNumber", data.partNumber);
       if (data.notes) set("notes", data.notes);
-      if (data.make) set("make", data.make);
-      if (data.model) set("model", data.model);
-      if (data.yearFrom) set("yearFrom", data.yearFrom);
-      if (data.yearTo) set("yearTo", data.yearTo);
-      if (data.partOrigin) set("partOrigin", data.partOrigin);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

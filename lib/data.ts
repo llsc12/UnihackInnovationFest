@@ -220,6 +220,38 @@ export async function updateListing(
   if (error) throw new Error(`updateListing: ${error.message}`);
 }
 
+// ── Seller profiles ──────────────────────────────────────────────────────────
+
+export async function getSellerById(sellerId: string): Promise<import("@/lib/types").Seller | undefined> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("sellers")
+    .select("*")
+    .eq("id", sellerId)
+    .maybeSingle();
+  if (error) throw new Error(`getSellerById: ${error.message}`);
+  if (!data) return undefined;
+  return {
+    id: data.id,
+    name: data.name,
+    verified: data.verified,
+    rating: data.rating ?? undefined,
+    reviewCount: data.review_count ?? undefined,
+    location: data.location ?? undefined,
+  };
+}
+
+export async function getListingsBySeller(sellerId: string): Promise<Listing[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select(`*, seller:sellers(*), fits_vehicles:listing_fits_vehicles(make, model, year_from, year_to)`)
+    .eq("seller_id", sellerId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`getListingsBySeller: ${error.message}`);
+  return (data ?? []).map(rowToListing);
+}
+
 // ── Saved listings ───────────────────────────────────────────────────────────
 // All queries scope by user_id explicitly. RLS on the table denies anon/auth
 // reads outright; service_role (the createServerClient below) bypasses RLS.

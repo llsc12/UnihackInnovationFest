@@ -121,14 +121,17 @@ Rules:
     ],
   });
 
-  const text = res.content
+  const raw = res.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("");
 
+  // Strip markdown code fences if the model wraps the JSON (e.g. ```json ... ```)
+  const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
   try {
     return NextResponse.json(JSON.parse(text));
   } catch {
-    return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to parse AI response", raw }, { status: 500 });
   }
 }

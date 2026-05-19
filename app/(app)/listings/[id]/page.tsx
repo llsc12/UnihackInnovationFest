@@ -8,6 +8,7 @@ import { cookies } from "next/headers";
 import { getListingById, getVehicles, isListingSaved } from "@/lib/data";
 import { createSessionServerClient } from "@/lib/supabase";
 import { computeTrustScore } from "@/lib/trust-score";
+import { detectPriceAnomaly } from "@/lib/price-anomaly";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,11 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const listing = await getListingById(id);
   if (!listing) notFound();
 
-  const trust = computeTrustScore(listing);
+  const [priceAnomaly, vehicles] = await Promise.all([
+    detectPriceAnomaly(listing),
+    getVehicles(),
+  ]);
+  const trust = computeTrustScore(listing, { priceAnomalyFlag: priceAnomaly.flag });
 
   const cookieStore = await cookies();
   const supabase = createSessionServerClient(cookieStore);
@@ -41,7 +46,6 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const isOwner = user != null && listing.userId === user.id;
   const initiallySaved = user ? await isListingSaved(user.id, listing.id) : false;
 
-  const vehicles = await getVehicles();
 
   const images = listing.input.images?.length ? listing.input.images : ["/placeholder.svg"];
 
@@ -51,6 +55,13 @@ export default async function ListingDetailPage({ params }: PageProps) {
     <div className="grid gap-8 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-6">
         <ImageGallery images={images} alt={listing.generated.title} />
+
+        {priceAnomaly.flag && priceAnomaly.reason && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span className="mt-0.5 shrink-0 text-base">⚠</span>
+            <p>{priceAnomaly.reason}</p>
+          </div>
+        )}
 
         <header className="space-y-3">
           <div className="flex items-start justify-between gap-4">

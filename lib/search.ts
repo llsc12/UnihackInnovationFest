@@ -1,14 +1,15 @@
 // STREAM 4 — Search & Discovery.
-// Naive substring + field-match search over listings.
-//
-// TODO(stream-4):
-//   - Score keyword overlap (input.keywords + generated.keywords).
-//   - Support partial year matches ("2016" -> includes any listing covering 2016).
-//   - Add filters: priceMin/priceMax, condition, sellerVerified.
-//   - Order results by relevance + trust score blend.
+// Relevance scoring blended with trust score so high-quality listings
+// surface above low-quality ones when relevance is equal.
 
 import { getAllListings } from "@/lib/data";
+import { computeTrustScore } from "@/lib/trust-score";
 import type { Listing, SearchQuery, SearchResult } from "@/lib/types";
+
+// Trust contributes up to TRUST_WEIGHT points on top of the relevance score.
+// Keeps trust as a meaningful tiebreaker without letting it override a
+// clearly more relevant result.
+const TRUST_WEIGHT = 2.0;
 
 export async function search(query: SearchQuery): Promise<SearchResult[]> {
   const listings = await getAllListings();
@@ -49,7 +50,9 @@ export async function search(query: SearchQuery): Promise<SearchResult[]> {
     if (query.verifiedOnly && !listing.seller.verified) continue;
 
     if (score > 0 || (!q && !query.make && !query.model && !query.partType && !query.year)) {
-      results.push({ listing, score });
+      const trust = computeTrustScore(listing);
+      const trustBonus = (trust.score / 100) * TRUST_WEIGHT;
+      results.push({ listing, score: score + trustBonus });
     }
   }
 

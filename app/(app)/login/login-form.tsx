@@ -13,7 +13,8 @@ type PrivacyMode = "public" | "private";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const initialMode: Mode = searchParams.get("mode") === "signup" ? "register" : "login";
+  const initialMode: Mode =
+    searchParams.get("mode") === "signup" ? "register" : "login";
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
@@ -34,16 +35,35 @@ export function LoginForm() {
     const supabase = createBrowserClient();
 
     if (mode === "login") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); setLoading(false); return; }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
     } else {
-      const { error: signUpError } = await supabase.auth.signUp({ email, password });
-      if (signUpError) { setError(signUpError.message); setLoading(false); return; }
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
 
-      // Create the profile record server-side
+      // Pass the access token explicitly — the session cookie may not be set
+      // in the browser yet when this fetch fires immediately after signUp.
+      const token = signUpData.session?.access_token;
       const res = await fetch("/api/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ username, fullName, dateOfBirth, privacyMode }),
       });
       if (!res.ok) {
@@ -88,7 +108,9 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
               minLength={6}
             />
           </div>
@@ -101,7 +123,11 @@ export function LoginForm() {
                   id="username"
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                  onChange={(e) =>
+                    setUsername(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                    )
+                  }
                   required
                   minLength={3}
                   maxLength={30}
@@ -135,7 +161,10 @@ export function LoginForm() {
                 <Label>Profile visibility</Label>
                 <div className="flex gap-4 text-sm">
                   {(["public", "private"] as PrivacyMode[]).map((v) => (
-                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                    <label
+                      key={v}
+                      className="flex items-center gap-1.5 cursor-pointer"
+                    >
                       <input
                         type="radio"
                         name="privacyMode"
@@ -165,7 +194,9 @@ export function LoginForm() {
             <button
               type="button"
               className="underline"
-              onClick={() => switchMode(mode === "login" ? "register" : "login")}
+              onClick={() =>
+                switchMode(mode === "login" ? "register" : "login")
+              }
             >
               {mode === "login" ? "Register" : "Sign in"}
             </button>

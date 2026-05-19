@@ -4,11 +4,19 @@
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createSessionServerClient } from "@/lib/supabase";
+import { createSessionServerClient, createServerClient } from "@/lib/supabase";
 import { createProfile, getOwnProfile, updateProfile } from "@/lib/data";
 import type { PrivacyMode } from "@/lib/types";
 
-async function getAuthUser() {
+async function getAuthUser(req?: Request) {
+  // Bearer token takes priority — used immediately after signUp before the
+  // session cookie has been written to the browser.
+  const authHeader = req?.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data: { user } } = await createServerClient().auth.getUser(token);
+    return user;
+  }
   const cookieStore = await cookies();
   const supabase = createSessionServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,7 +37,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAuthUser();
+    const user = await getAuthUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { username, fullName, dateOfBirth, privacyMode } = await req.json();

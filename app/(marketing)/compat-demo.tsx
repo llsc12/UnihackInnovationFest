@@ -4,11 +4,12 @@
 // + real algorithms (lib/compatibility.ts, lib/trust-score.ts).
 // The full checker lives at /listings/[id] — this one drives the marketing pitch.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { checkCompatibility } from "@/lib/compatibility";
 import { computeTrustScore } from "@/lib/trust-score";
 import { formatYearRange } from "@/lib/utils";
-import type { Listing, Vehicle } from "@/lib/types";
+import type { CompatibilityRule } from "@/lib/data";
+import type { CompatibilityResult, Listing, Vehicle } from "@/lib/types";
 
 const TABS = ["Compatibility Check", "Part Details", "Seller Info"] as const;
 type Tab = (typeof TABS)[number];
@@ -16,9 +17,10 @@ type Tab = (typeof TABS)[number];
 interface Props {
   listing: Listing;
   vehicles: Vehicle[];
+  compatRules: Record<string, CompatibilityRule[]>;
 }
 
-export function CompatDemo({ listing, vehicles }: Props) {
+export function CompatDemo({ listing, vehicles, compatRules }: Props) {
   const trust = useMemo(() => computeTrustScore(listing), [listing]);
 
   // Default the dropdowns to a vehicle the listing actually fits (green out of the box).
@@ -41,10 +43,19 @@ export function CompatDemo({ listing, vehicles }: Props) {
   const models = useMemo(() => unique(vehicles.map((v) => v.model)), [vehicles]);
   const years = useMemo(() => unique(vehicles.map((v) => v.year)).sort((a, b) => b - a), [vehicles]);
 
-  const result = useMemo(
-    () => checkCompatibility(listing, { make, model, year }),
-    [listing, make, model, year]
-  );
+  const [result, setResult] = useState<CompatibilityResult>({
+    verdict: "compatible",
+    confidence: 0,
+    reasons: ["Checking…"],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    checkCompatibility(listing, { make, model, year }, compatRules).then((r) => {
+      if (!cancelled) setResult(r);
+    });
+    return () => { cancelled = true; };
+  }, [listing, make, model, year, compatRules]);
 
   const rowClass =
     result.verdict === "compatible"

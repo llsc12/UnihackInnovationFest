@@ -12,7 +12,7 @@
 //      to give an informed, part-specific verdict.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { getCompatibilityRules } from "@/lib/data";
+import { getCompatibilityRules, type CompatibilityRule } from "@/lib/data";
 import type {
   CompatibilityResult,
   Listing,
@@ -22,7 +22,8 @@ import type {
 
 export async function checkCompatibility(
   listing: Listing,
-  vehicle: Vehicle
+  vehicle: Vehicle,
+  preloadedRules?: Record<string, CompatibilityRule[]>,
 ): Promise<CompatibilityResult> {
   const reasons: string[] = [];
 
@@ -65,7 +66,7 @@ export async function checkCompatibility(
   }
 
   // Year is inside the range — check for generation boundary crossings.
-  const rules = await getCompatibilityRules();
+  const rules = preloadedRules ?? await getCompatibilityRules();
   const generationResult = checkGenerationBoundary(vehicle, makeModelMatch, reasons, rules);
   if (generationResult.verdict === "maybe") {
     return aiFallback(listing, vehicle, generationResult);

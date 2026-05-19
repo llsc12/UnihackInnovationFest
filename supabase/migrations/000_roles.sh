@@ -29,12 +29,16 @@ psql -v ON_ERROR_STOP=1 \
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
       CREATE ROLE supabase_auth_admin NOINHERIT CREATEROLE NOREPLICATION LOGIN;
     END IF;
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'supabase_storage_admin') THEN
+      CREATE ROLE supabase_storage_admin NOINHERIT CREATEROLE LOGIN;
+    END IF;
   END
   $$;
 
   -- Set passwords for login roles (:'pgpass' is substituted by psql, not bash)
-  ALTER ROLE authenticator       WITH PASSWORD :'pgpass';
-  ALTER ROLE supabase_auth_admin WITH CREATEROLE NOREPLICATION PASSWORD :'pgpass';
+  ALTER ROLE authenticator           WITH PASSWORD :'pgpass';
+  ALTER ROLE supabase_auth_admin     WITH CREATEROLE NOREPLICATION PASSWORD :'pgpass';
+  ALTER ROLE supabase_storage_admin  WITH PASSWORD :'pgpass';
 
   -- GoTrue queries auth tables without the schema prefix, so its role must
   -- default to the auth search_path.

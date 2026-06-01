@@ -1,14 +1,32 @@
 "use client";
 
-// Tinder-for-car-parts demo, backed by real listings + the trust score algorithm.
-// The Like button hits /api/saves/:id so likes persist to the user's saved list
-// (and the /saved page reflects them). When logged out, Like is disabled with a hint.
+// Tinder-for-car-parts. Drag a card right to like (saves to the user's /saved
+// list via /api/saves/:id), left to pass. Buttons mirror the gestures. The deck
+// is one-pass and excludes parts the user already saved; when it runs out we
+// show an "all caught up" state.
 
-import { useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
+import {
+  motion,
+  useAnimationControls,
+  useMotionValue,
+  useTransform,
+} from "framer-motion";
 import { computeTrustScore } from "@/lib/trust-score";
 import { formatPrice, formatYearRange } from "@/lib/utils";
 import type { Listing } from "@/lib/types";
+
+const SWIPE_THRESHOLD = 120;
+const VELOCITY_THRESHOLD = 600;
 
 interface Props {
   listings: Listing[];
@@ -17,250 +35,348 @@ interface Props {
 }
 
 export function PartSwiper({ listings, initialSavedIds, loggedIn }: Props) {
-  const [index, setIndex] = useState(0);
-  const [saved, setSaved] = useState<string[]>(initialSavedIds);
-  const [compared, setCompared] = useState<string[]>([]);
-  const [statsOpen, setStatsOpen] = useState(false);
-  const [pendingLike, setPendingLike] = useState(false);
+  // One-pass deck: drop anything already saved so it never reappears.
+  const deck = useMemo(
+    () => listings.filter((l) => !initialSavedIds.includes(l.id)),
+    [listings, initialSavedIds],
+  );
 
-  if (listings.length === 0) {
+  const [index, setIndex] = useState(0);
+  const [likedCount, setLikedCount] = useState(0);
+  const [hint, setHint] = useState<string | null>(null);
+  const topRef = useRef<SwipeCardHandle>(null);
+
+  const done = index >= deck.length;
+  const current = deck[index];
+  const peek = deck[index + 1];
+
+  const persistLike = useCallback((id: string) => {
+    // Optimistic — the card has already flown off. Log on failure; there is no
+    // visible state to roll back to since we've advanced.
+    fetch(`/api/saves/${encodeURIComponent(id)}`, { method: "POST" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`save failed: ${res.status}`);
+      })
+      .catch((err) => console.error(err));
+  }, []);
+
+  const vote = useCallback(
+    (dir: 1 | -1, id: string) => {
+      if (dir === 1) {
+        if (loggedIn) {
+          persistLike(id);
+          setLikedCount((c) => c + 1);
+        } else {
+          setHint("Log in to save parts you like.");
+        }
+      }
+      setIndex((i) => i + 1);
+    },
+    [loggedIn, persistLike],
+  );
+
+  // Keyboard: ←/→ pass/like the top card.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowRight") topRef.current?.fling(1);
+      else if (e.key === "ArrowLeft") topRef.current?.fling(-1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  if (deck.length === 0) {
     return (
-      <section className="swipe-stage" style={{ display: "block", textAlign: "center", padding: "60px 0" }}>
-        <p>No listings yet. <Link href="/sell" style={{ color: "var(--ar-red)", fontWeight: 800 }}>Be the first to list a part →</Link></p>
+      <section className="swipe-empty">
+        {initialSavedIds.length > 0 ? (
+          <>
+            <h2>You&apos;ve swiped through everything.</h2>
+            <p>
+              Check your{" "}
+              <Link href="/saved" className="swipe-link">
+                saved parts
+              </Link>{" "}
+              or{" "}
+              <Link href="/listings" className="swipe-link">
+                browse the full catalogue
+              </Link>
+              .
+            </p>
+          </>
+        ) : (
+          <>
+            <h2>No parts to discover yet.</h2>
+            <p>
+              <Link href="/sell" className="swipe-link">
+                Be the first to list a part →
+              </Link>
+            </p>
+          </>
+        )}
       </section>
     );
   }
 
-  const listing = listings[index];
-  const part = toDisplay(listing);
-  const isLiked = saved.includes(listing.id);
-  const isCompared = compared.includes(listing.id);
-
-  function go(delta: number) {
-    setStatsOpen(false);
-    setIndex((i) => (i + delta + listings.length) % listings.length);
+  if (done) {
+    return (
+      <section className="swipe-empty">
+        <h2>You&apos;re all caught up.</h2>
+        <p>
+          {likedCount > 0
+            ? `You liked ${likedCount} part${likedCount === 1 ? "" : "s"} this session.`
+            : "No likes this session."}
+        </p>
+        <div className="swipe-empty-actions">
+          {loggedIn && (
+            <Link href="/saved" className="swipe-link-btn">
+              View saved parts
+            </Link>
+          )}
+          <Link href="/listings" className="swipe-link-btn ghost">
+            Browse all parts
+          </Link>
+        </div>
+      </section>
+    );
   }
-
-  async function toggleLike() {
-    if (!loggedIn || pendingLike) return;
-    const next = !isLiked;
-    setSaved((s) => (next ? [...s, listing.id] : s.filter((id) => id !== listing.id)));
-    setPendingLike(true);
-    try {
-      const res = await fetch(`/api/saves/${encodeURIComponent(listing.id)}`, {
-        method: next ? "POST" : "DELETE",
-      });
-      if (!res.ok) throw new Error(`save toggle failed: ${res.status}`);
-    } catch (err) {
-      console.error(err);
-      setSaved((s) => (next ? s.filter((id) => id !== listing.id) : [...s, listing.id]));
-    } finally {
-      setPendingLike(false);
-    }
-  }
-
-  function toggleCompare() {
-    setCompared((c) => (c.includes(listing.id) ? c.filter((id) => id !== listing.id) : [...c, listing.id]));
-  }
-
-  const savedNames = saved
-    .map((id) => listings.find((l) => l.id === id)?.generated.title)
-    .filter((n): n is string => !!n);
-
-  const likeLabel = isLiked ? "Liked ♥" : loggedIn ? "Like Part" : "Log in to like";
 
   return (
+    <section className="swipe-deck-wrap">
+      <div className="swipe-deck">
+        {peek && <StaticCard key={peek.id} listing={peek} />}
+        <SwipeCard
+          key={current.id}
+          ref={topRef}
+          listing={current}
+          onVote={(dir) => vote(dir, current.id)}
+        />
+      </div>
+
+      <div className="swipe-controls">
+        <button
+          type="button"
+          className="swipe-action pass"
+          aria-label="Pass"
+          onClick={() => topRef.current?.fling(-1)}
+        >
+          ✕
+        </button>
+        <button
+          type="button"
+          className="swipe-action like"
+          aria-label="Like"
+          onClick={() => topRef.current?.fling(1)}
+        >
+          ♥
+        </button>
+      </div>
+
+      <p className="swipe-progress">
+        {index + 1} / {deck.length}
+        {hint && <span className="swipe-hint"> · {hint}</span>}
+      </p>
+    </section>
+  );
+}
+
+// ── Top (interactive) card ─────────────────────────────────────────────────────
+
+interface SwipeCardHandle {
+  fling: (dir: 1 | -1) => void;
+}
+
+interface SwipeCardProps {
+  listing: Listing;
+  onVote: (dir: 1 | -1) => void;
+}
+
+const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(function SwipeCard(
+  { listing, onVote },
+  ref,
+) {
+  const controls = useAnimationControls();
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-240, 240], [-16, 16]);
+  const likeOpacity = useTransform(x, [30, 130], [0, 1]);
+  const nopeOpacity = useTransform(x, [-130, -30], [1, 0]);
+  const [flinging, setFlinging] = useState(false);
+
+  const fling = useCallback(
+    (dir: 1 | -1) => {
+      if (flinging) return;
+      setFlinging(true);
+      controls
+        .start({
+          x: dir * 1100,
+          rotate: dir * 22,
+          opacity: 0,
+          transition: { duration: 0.32, ease: "easeOut" },
+        })
+        .then(() => onVote(dir));
+    },
+    [controls, flinging, onVote],
+  );
+
+  useImperativeHandle(ref, () => ({ fling }), [fling]);
+
+  const part = toDisplay(listing);
+
+  return (
+    <motion.article
+      className="tinder-card"
+      style={{ x, rotate }}
+      drag={flinging ? false : "x"}
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.7}
+      animate={controls}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > SWIPE_THRESHOLD || info.velocity.x > VELOCITY_THRESHOLD) {
+          fling(1);
+        } else if (
+          info.offset.x < -SWIPE_THRESHOLD ||
+          info.velocity.x < -VELOCITY_THRESHOLD
+        ) {
+          fling(-1);
+        }
+      }}
+    >
+      <motion.div className="swipe-stamp like" style={{ opacity: likeOpacity }}>
+        LIKE
+      </motion.div>
+      <motion.div className="swipe-stamp nope" style={{ opacity: nopeOpacity }}>
+        NOPE
+      </motion.div>
+      <CardFace part={part} listingId={listing.id} interactive />
+    </motion.article>
+  );
+});
+
+// ── Behind (decorative) card ───────────────────────────────────────────────────
+
+function StaticCard({ listing }: { listing: Listing }) {
+  return (
+    <article className="tinder-card peek" aria-hidden="true">
+      <CardFace part={toDisplay(listing)} listingId={listing.id} interactive={false} />
+    </article>
+  );
+}
+
+// ── Shared card face ───────────────────────────────────────────────────────────
+
+function CardFace({
+  part,
+  listingId,
+  interactive,
+}: {
+  part: DisplayPart;
+  listingId: string;
+  interactive: boolean;
+}) {
+  return (
     <>
-      <section className="swipe-stage">
-        <button
-          type="button"
-          className="swipe-arrow left-arrow"
-          aria-label="Previous part"
-          onClick={() => go(-1)}
-        >
-          ←
-        </button>
+      <div
+        className="tinder-photo"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,0,0,0) 40%, rgba(0,0,0,0.78)), url("${part.image}")`,
+        }}
+      >
+        <span className={`tinder-trust ${part.band}`}>{part.tag}</span>
+        <span className="tinder-price">{part.price}</span>
+      </div>
 
-        <article className="part-swipe-card">
-          <div className="swipe-card-top">
-            <div>
-              <p className="part-tag">{part.tag}</p>
-              <h2>{part.name}</h2>
-            </div>
-
-            <div className="seller-box">
-              <div className="seller-avatar">{part.sellerAvatar}</div>
-              <div>
-                <h3>{part.sellerName}</h3>
-                <p>{part.sellerRating}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="swipe-card-main">
-            <div className="component-image-wrap">
-              <div
-                className="component-image"
-                style={{
-                  backgroundImage: `linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.12)), url("${part.image}")`,
-                }}
-              />
-            </div>
-
-            <aside className="part-stats">
-              <h3>Stats</h3>
-              <div className="stat-row"><span>Fits</span><strong>{part.fitsLabel}</strong></div>
-              <div className="stat-row"><span>Trust Score</span><strong>{part.trustScore}</strong></div>
-              <div className="stat-row"><span>Condition</span><strong>{part.condition}</strong></div>
-              <div className="stat-row"><span>Location</span><strong>{part.location}</strong></div>
-            </aside>
-          </div>
-
-          <div className="swipe-card-bottom">
-            <div>
-              <p className="price-label">Price</p>
-              <h3>{part.price}</h3>
-            </div>
-
-            <div className="swipe-actions">
-              <button
-                type="button"
-                className={`compare-btn ${isCompared ? "active" : ""}`}
-                onClick={toggleCompare}
-              >
-                {isCompared ? "Added to Compare ✓" : "Compare"}
-              </button>
-              <Link className="stats-btn" href={`/listings/${listing.id}`}>
-                View full listing
-              </Link>
-              <button
-                type="button"
-                className="stats-btn"
-                onClick={() => setStatsOpen(true)}
-              >
-                Full stats
-              </button>
-              <button
-                type="button"
-                className={`like-btn ${isLiked ? "liked" : ""}`}
-                onClick={toggleLike}
-                disabled={!loggedIn || pendingLike}
-                title={loggedIn ? undefined : "Log in to like"}
-              >
-                {likeLabel}
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <button
-          type="button"
-          className="swipe-arrow right-arrow"
-          aria-label="Next part"
-          onClick={() => go(1)}
-        >
-          →
-        </button>
-      </section>
-
-      <section className={`full-stats-panel ${statsOpen ? "show" : ""}`}>
-        <div className="panel-header">
-          <h2>{part.name} — Full stat list</h2>
-          <button type="button" aria-label="Close" onClick={() => setStatsOpen(false)}>×</button>
-        </div>
-
-        <div className="stats-grid">
-          <div><span>OEM Part Number</span><strong>{part.oem}</strong></div>
-          <div><span>Vehicle Fitment</span><strong>{part.fitsLabel}</strong></div>
-          <div><span>Part Type</span><strong>{part.partType}</strong></div>
-          <div><span>Seller Verification</span><strong>{part.verification}</strong></div>
-          <div><span>Return Policy</span><strong>{part.returns}</strong></div>
-          <div><span>Trust Band</span><strong>{part.risk}</strong></div>
-        </div>
-      </section>
-
-      <section className="saved-bar">
-        <h2>Saved parts</h2>
-        <p>
-          {!loggedIn
-            ? "Log in to save parts."
-            : savedNames.length === 0
-            ? "No parts liked yet."
-            : savedNames.join(", ")}
+      <div className="tinder-body">
+        <h2>{part.name}</h2>
+        <p className="tinder-seller">
+          {part.sellerName}
+          {part.verification === "Verified" && <span className="tinder-verified"> · ✓ Verified</span>}
         </p>
-      </section>
+
+        <dl className="tinder-stats">
+          <div>
+            <dt>Fits</dt>
+            <dd>{part.fitsLabel}</dd>
+          </div>
+          <div>
+            <dt>Condition</dt>
+            <dd>{part.condition}</dd>
+          </div>
+          <div>
+            <dt>Trust</dt>
+            <dd>{part.trustScore}</dd>
+          </div>
+        </dl>
+
+        {interactive && (
+          <Link
+            href={`/listings/${listingId}`}
+            className="tinder-view"
+            // Don't let a tap on the link start a drag.
+            onPointerDownCapture={(e) => e.stopPropagation()}
+          >
+            View full listing →
+          </Link>
+        )}
+      </div>
     </>
   );
 }
 
+// ── Display mapping (unchanged logic, reused from the old carousel) ─────────────
+
 interface DisplayPart {
   tag: string;
+  band: string;
   name: string;
-  sellerAvatar: string;
   sellerName: string;
-  sellerRating: string;
   image: string;
   fitsLabel: string;
   trustScore: string;
   condition: string;
-  location: string;
   price: string;
-  oem: string;
   partType: string;
   verification: string;
-  returns: string;
-  risk: string;
 }
 
 function toDisplay(listing: Listing): DisplayPart {
   const trust = computeTrustScore(listing);
   const fit = listing.fitsVehicles[0];
-  const fitsLabel = fit ? `${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}` : "—";
+  const fitsLabel = fit
+    ? `${fit.make} ${fit.model} ${formatYearRange(fit.yearFrom, fit.yearTo)}`
+    : "—";
 
   return {
     tag:
       trust.band === "high"
-        ? listing.seller.verified ? "Verified Match" : "High Trust Seller"
+        ? listing.seller.verified
+          ? "Verified Match"
+          : "High Trust"
         : trust.band === "medium"
         ? "Check Details"
-        : "Caution Advised",
+        : "Caution",
+    band: trust.band,
     name: listing.generated.title,
-    sellerAvatar: initials(listing.seller.name),
     sellerName: listing.seller.name,
-    sellerRating:
-      listing.seller.rating != null
-        ? `★★★★★ ${listing.seller.rating} (${listing.seller.reviewCount ?? 0} reviews)`
-        : "New seller",
     image: listing.input.images?.[0] ?? "/placeholder.svg",
     fitsLabel,
     trustScore: `${trust.score}/100`,
     condition: prettyCondition(listing.input.condition),
-    location: listing.seller.location ?? "—",
     price: listing.input.price != null ? formatPrice(listing.input.price) : "POA",
-    oem: listing.input.partNumber ?? "Not provided",
     partType: listing.input.partType,
     verification: listing.seller.verified ? "Verified" : "Unverified",
-    returns: listing.input.hasReturnPolicy ? "Available" : "Not offered",
-    risk: trust.band === "high" ? "High trust" : trust.band === "medium" ? "Medium trust" : "Low trust",
   };
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 function prettyCondition(c: Listing["input"]["condition"]): string {
   switch (c) {
-    case "new": return "New";
-    case "like-new": return "Like new";
-    case "good": return "Good";
-    case "fair": return "Fair";
-    case "for-parts": return "For parts";
+    case "new":
+      return "New";
+    case "like-new":
+      return "Like new";
+    case "good":
+      return "Good";
+    case "fair":
+      return "Fair";
+    case "for-parts":
+      return "For parts";
   }
 }

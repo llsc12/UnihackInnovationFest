@@ -43,8 +43,9 @@ export async function getPriceStats(partType: string): Promise<PriceStats | null
 
   if (error || !data || data.length < MIN_SAMPLE_SIZE) return null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sorted = (data as any[]).map((r) => Number(r.price)).sort((a, b) => a - b);
+  const sorted = (data as Array<{ price: number | string }>)
+    .map((r) => Number(r.price))
+    .sort((a, b) => a - b);
   return {
     median: percentile(sorted, 50),
     p25: percentile(sorted, 25),

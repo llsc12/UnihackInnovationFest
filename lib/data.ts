@@ -56,9 +56,10 @@ export async function getAllListings(): Promise<Listing[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`getAllListings: ${error.message}`);
-  const rows = data ?? [];
-  const profiles = await fetchProfilesForUserIds(rows.map((r) => r.user_id).filter(Boolean));
-  return rows.map((r) => rowToListing(r, profiles[r.user_id] ?? null));
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  const userIds = rows.map((r) => r.user_id as string).filter(Boolean);
+  const profiles = await fetchProfilesForUserIds(userIds);
+  return rows.map((r) => rowToListing(r, profiles[r.user_id as string] ?? null));
 }
 
 export async function getListingById(id: string): Promise<Listing | undefined> {
@@ -71,8 +72,10 @@ export async function getListingById(id: string): Promise<Listing | undefined> {
 
   if (error) throw new Error(`getListingById: ${error.message}`);
   if (!data) return undefined;
-  const profiles = await fetchProfilesForUserIds(data.user_id ? [data.user_id] : []);
-  return rowToListing(data, profiles[data.user_id] ?? null);
+  const row = data as unknown as Record<string, unknown>;
+  const userId = row.user_id as string | undefined;
+  const profiles = await fetchProfilesForUserIds(userId ? [userId] : []);
+  return rowToListing(row, (userId && profiles[userId]) || null);
 }
 
 export async function getListingsByUser(userId: string): Promise<Listing[]> {
@@ -318,7 +321,7 @@ export async function getListingsBySeller(sellerId: string): Promise<Listing[]> 
     .eq("seller_id", sellerId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`getListingsBySeller: ${error.message}`);
-  return (data ?? []).map(rowToListing);
+  return (data ?? []).map((r) => rowToListing(r));
 }
 
 // ── Saved listings ───────────────────────────────────────────────────────────

@@ -25,8 +25,8 @@ export default async function DiscoverPage() {
         <p className="eyebrow">✦ AI-powered car part discovery</p>
         <h1>Swipe through trusted used car parts.</h1>
         <p>
-          Browse verified parts one at a time, compare compatibility, check full
-          stats, and like the parts you want to save.
+          Swipe right to save a part to your collection, left to pass. Drag the
+          card or use the buttons below.
         </p>
       </section>
 

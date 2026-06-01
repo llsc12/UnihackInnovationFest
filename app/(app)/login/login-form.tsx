@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,10 @@ type PrivacyMode = "public" | "private";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const initialMode: Mode =
+  const requestedMode: Mode =
     searchParams.get("mode") === "signup" ? "register" : "login";
 
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<Mode>(requestedMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // registration-only fields
@@ -26,6 +26,14 @@ export function LoginForm() {
   const [privacyMode, setPrivacyMode] = useState<PrivacyMode>("public");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-sync the form when the header switches between /login and /login?mode=signup.
+  // Client-side navigation doesn't remount this component, so useState alone would
+  // keep the stale mode — this effect keeps the form in step with the URL.
+  useEffect(() => {
+    setMode(requestedMode);
+    setError(null);
+  }, [requestedMode]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
